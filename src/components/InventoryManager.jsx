@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import CameraCapture from './CameraCapture';
 
 const InventoryManager = () => {
   const [products, setProducts] = useState([]);
@@ -21,6 +22,7 @@ const InventoryManager = () => {
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
   const [cashAction, setCashAction] = useState('add'); // 'add' or 'remove'
+  const [showCamera, setShowCamera] = useState(false);
 
   const API_BASE = 'http://localhost:8000';
 
@@ -30,8 +32,10 @@ const InventoryManager = () => {
     quantity: '',
     barcode: '',
     category: '',
+    brand: '',
     description: '',
-    min_stock: '5'
+    min_stock: '5',
+    image_url: ''
   });
 
   useEffect(() => {
@@ -143,6 +147,7 @@ const InventoryManager = () => {
         quantity: formData.quantity ? parseInt(formData.quantity) : 0,
         barcode: formData.barcode.trim() || undefined,
         category: formData.category.trim() || undefined,
+        brand: formData.brand.trim() || undefined,
         description: formData.description.trim() || undefined,
         min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5
       };
@@ -244,11 +249,23 @@ const InventoryManager = () => {
       quantity: '',
       barcode: '',
       category: '',
+      brand: '',
       description: '',
-      min_stock: '5'
+      min_stock: '5',
+      image_url: ''
     });
     setEditingProduct(null);
     setShowAddForm(false);
+  };
+
+  const handleImageCaptured = (imageUrl) => {
+    setFormData(prev => ({ ...prev, image_url: imageUrl }));
+    setMessage('Product image captured successfully!');
+    setMessageType('success');
+  };
+
+  const removeImage = () => {
+    setFormData(prev => ({ ...prev, image_url: '' }));
   };
 
   const handleEdit = (product) => {
@@ -258,6 +275,7 @@ const InventoryManager = () => {
       quantity: product.quantity || '',
       barcode: product.barcode || '',
       category: product.category || '',
+      brand: product.brand || '',
       description: product.description || '',
       min_stock: product.min_stock || '5'
     });
@@ -315,6 +333,16 @@ const InventoryManager = () => {
       .filter((category, index, arr) => arr.indexOf(category) === index)
       .sort();
     return categories;
+  };
+
+  // Get unique brands for filtering
+  const getUniqueBrands = () => {
+    const brands = products
+      .map(product => product.brand)
+      .filter(brand => brand && brand.trim() !== '')
+      .filter((brand, index, arr) => arr.indexOf(brand) === index)
+      .sort();
+    return brands;
   };
 
   // Handle sorting
@@ -610,6 +638,20 @@ const InventoryManager = () => {
                 />
               </div>
               <div>
+                <label style={{ display: 'block', marginBottom: '5px' }}>Brand</label>
+                <input
+                  type="text"
+                  value={formData.brand}
+                  onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div>
                 <label style={{ display: 'block', marginBottom: '5px' }}>Barcode</label>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <input
@@ -667,6 +709,100 @@ const InventoryManager = () => {
                   borderRadius: '4px'
                 }}
               />
+            </div>
+
+            {/* Product Image Section */}
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                📸 Product Image
+              </label>
+              
+              {formData.image_url ? (
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '15px',
+                  padding: '15px',
+                  border: '2px dashed #28a745',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fff9'
+                }}>
+                  <img
+                    src={`${API_BASE}${formData.image_url}`}
+                    alt="Product preview"
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '2px solid #28a745'
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '5px' }}>
+                      ✅ Image captured successfully!
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      Image will be displayed in POS and inventory
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    🗑️ Remove
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  padding: '20px',
+                  border: '2px dashed #ddd',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  backgroundColor: '#f8f9fa'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
+                  <div style={{ marginBottom: '10px', color: '#666' }}>
+                    Add a product image to help with identification
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCamera(true)}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      margin: '0 auto'
+                    }}
+                  >
+                    📸 Take Photo
+                  </button>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#999', 
+                    marginTop: '10px',
+                    fontStyle: 'italic'
+                  }}>
+                    Optional: Images help staff identify products quickly
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
               <button
@@ -785,6 +921,7 @@ const InventoryManager = () => {
           <thead>
             <tr style={{ backgroundColor: '#f8f9fa' }}>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Name</th>
+              <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Brand</th>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Category</th>
               <th style={{ padding: '12px', textAlign: 'right', border: '1px solid #dee2e6' }}>Price</th>
               <th style={{ padding: '12px', textAlign: 'right', border: '1px solid #dee2e6' }}>Stock</th>
@@ -812,6 +949,9 @@ const InventoryManager = () => {
                       )}
                     </div>
                   </div>
+                </td>
+                <td style={{ padding: '12px', border: '1px solid #dee2e6' }}>
+                  <span>{product.brand || '-'}</span>
                 </td>
                 <td style={{ padding: '12px', border: '1px solid #dee2e6' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -1040,6 +1180,14 @@ const InventoryManager = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Camera Capture Modal */}
+      {showCamera && (
+        <CameraCapture
+          onImageCaptured={handleImageCaptured}
+          onClose={() => setShowCamera(false)}
+        />
       )}
 
       {/* Message Display */}

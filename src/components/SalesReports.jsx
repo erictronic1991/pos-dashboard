@@ -13,6 +13,11 @@ const SalesReports = () => {
   const [totalTransactions, setTotalTransactions] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('success');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const API_BASE = 'http://localhost:8000';
 
@@ -101,13 +106,14 @@ const SalesReports = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Transaction ID', 'Items', 'Total', 'Payment Method'];
+    const headers = ['Date', 'Transaction ID', 'Items', 'Total', 'Payment Method', 'Status'];
     const csvData = sales.map(sale => [
       formatDate(sale.timestamp),
       sale.id,
       sale.items.map(item => `${item.name} (${item.quantity})`).join('; '),
       sale.total,
-      sale.payment_method
+      sale.payment_method,
+      sale.status || 'completed'
     ]);
 
     const csvContent = [headers, ...csvData]
@@ -121,6 +127,48 @@ const SalesReports = () => {
     a.download = `sales-report-${dateRange.startDate}-to-${dateRange.endDate}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleCancelSale = (sale) => {
+    setSelectedSale(sale);
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelSale = async () => {
+    if (!selectedSale || !cancelReason.trim()) {
+      setMessage('Please provide a cancellation reason');
+      setMessageType('error');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE}/sales/${selectedSale.id}/cancel`, {
+        reason: cancelReason
+      });
+
+      if (response.data.success) {
+        setMessage(`Transaction #${selectedSale.id} cancelled successfully. Refund amount: ${formatCurrency(response.data.refundAmount)}`);
+        setMessageType('success');
+        
+        // Refresh sales data
+        loadSales();
+        
+        // Close modal and reset
+        setShowCancelModal(false);
+        setSelectedSale(null);
+        setCancelReason('');
+      }
+    } catch (error) {
+      console.error('Error cancelling sale:', error);
+      setMessage(error.response?.data?.error || 'Failed to cancel transaction');
+      setMessageType('error');
+    }
+  };
+
+  const closeCancelModal = () => {
+    setShowCancelModal(false);
+    setSelectedSale(null);
+    setCancelReason('');
   };
 
   // Show loading state
@@ -340,16 +388,25 @@ const SalesReports = () => {
                   <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Items</th>
                   <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>Total</th>
                   <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Payment</th>
+                  <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>Status</th>
+                  <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {sales.map(sale => (
-                  <tr key={sale.id}>
+                  <tr key={sale.id} style={{
+                    backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
+                  }}>
                     <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                       {formatDate(sale.timestamp)}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                       #{sale.id}
+                      {sale.status === 'cancelled' && (
+                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                          Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                       <div>
@@ -359,14 +416,26 @@ const SalesReports = () => {
                           </div>
                         ))}
                       </div>
+                      {sale.cancellation_reason && (
+                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
+                          Reason: {sale.cancellation_reason}
+                        </div>
+                      )}
                     </td>
                     <td style={{ 
                       padding: '10px', 
                       textAlign: 'right', 
                       border: '1px solid #dee2e6',
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
+                      textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
+                      color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
                     }}>
                       {formatCurrency(sale.total)}
+                      {sale.status === 'cancelled' && (
+                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                          REFUNDED
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                       <span style={{
@@ -385,6 +454,47 @@ const SalesReports = () => {
                         {sale.payment_method.toUpperCase()}
                       </span>
                     </td>
+                    <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        backgroundColor: 
+                          sale.status === 'cancelled' ? '#dc3545' :
+                          sale.modified_at ? '#ffc107' : '#28a745',
+                        color: 
+                          sale.status === 'cancelled' ? 'white' :
+                          sale.modified_at ? '#000' : 'white'
+                      }}>
+                        {sale.status === 'cancelled' ? '❌ CANCELLED' :
+                         sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                      {sale.status !== 'cancelled' && (
+                        <button
+                          onClick={() => handleCancelSale(sale)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }}
+                          title="Cancel Transaction"
+                        >
+                          🗑️ Cancel
+                        </button>
+                      )}
+                      {sale.status === 'cancelled' && (
+                        <span style={{ fontSize: '12px', color: '#666' }}>
+                          No actions
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -392,6 +502,163 @@ const SalesReports = () => {
           </div>
         )}
       </div>
+
+      {/* Cancel Transaction Modal */}
+      {showCancelModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            minWidth: '500px',
+            maxWidth: '600px'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#dc3545' }}>🗑️ Cancel Transaction</h3>
+            
+            {selectedSale && (
+              <div style={{ 
+                backgroundColor: '#f8f9fa', 
+                padding: '15px', 
+                borderRadius: '4px', 
+                marginBottom: '20px' 
+              }}>
+                <div><strong>Transaction ID:</strong> #{selectedSale.id}</div>
+                <div><strong>Date:</strong> {formatDate(selectedSale.timestamp)}</div>
+                <div><strong>Total Amount:</strong> {formatCurrency(selectedSale.total)}</div>
+                <div><strong>Items:</strong></div>
+                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                  {selectedSale.items.map((item, index) => (
+                    <li key={index} style={{ fontSize: '14px' }}>
+                      {item.name} × {item.quantity} @ {formatCurrency(item.price)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Cancellation Reason: *
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Please provide a reason for cancelling this transaction..."
+                rows="3"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  resize: 'vertical'
+                }}
+                autoFocus
+              />
+            </div>
+
+            <div style={{ 
+              backgroundColor: '#fff3cd', 
+              border: '1px solid #ffeaa7', 
+              borderRadius: '4px',
+              padding: '15px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ fontWeight: 'bold', color: '#856404', marginBottom: '5px' }}>
+                ⚠️ Warning: This action will:
+              </div>
+              <ul style={{ margin: '0', paddingLeft: '20px', color: '#856404' }}>
+                <li>Mark this transaction as cancelled</li>
+                <li>Restore all sold items back to inventory</li>
+                <li>Record the refund amount: {selectedSale ? formatCurrency(selectedSale.total) : '₱0.00'}</li>
+                <li>Update cash on hand (you'll need to manually adjust cash drawer)</li>
+                <li>This action cannot be undone</li>
+              </ul>
+            </div>
+
+            <div style={{ 
+              display: 'flex', 
+              gap: '10px', 
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={closeCancelModal}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCancelSale}
+                disabled={!cancelReason.trim()}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: !cancelReason.trim() ? '#ccc' : '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: !cancelReason.trim() ? 'not-allowed' : 'pointer'
+                }}
+              >
+                🗑️ Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Display */}
+      {message && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '15px 20px',
+          backgroundColor: messageType === 'success' ? '#d4edda' : '#f8d7da',
+          border: `1px solid ${messageType === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
+          borderRadius: '4px',
+          color: messageType === 'success' ? '#155724' : '#721c24',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+          zIndex: 1001,
+          maxWidth: '400px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{messageType === 'success' ? '✅' : '❌'}</span>
+            <span style={{ flex: 1 }}>{message}</span>
+            <button
+              onClick={() => setMessage('')}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '16px',
+                cursor: 'pointer',
+                color: 'inherit',
+                padding: '0 5px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -10,6 +10,10 @@ const POSInterface = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [viewMode, setViewMode] = useState('all'); // 'all', 'bestsellers', 'category'
+  const [bestsellers, setBestsellers] = useState([]);
 
   const API_BASE = 'http://localhost:8000';
 
@@ -22,6 +26,7 @@ const POSInterface = () => {
   // Load products on component mount
   useEffect(() => {
     loadProducts();
+    loadBestsellers();
   }, []);
 
   const loadProducts = async () => {
@@ -31,6 +36,67 @@ const POSInterface = () => {
     } catch (error) {
       console.error('Error loading products:', error);
       setMessage('Error loading products');
+    }
+  };
+
+  const loadBestsellers = async () => {
+    try {
+      // Get bestsellers from sales data
+      const response = await axios.get(`${API_BASE}/sales/bestsellers`);
+      setBestsellers(response.data || []);
+    } catch (error) {
+      console.error('Error loading bestsellers:', error);
+      // If bestsellers endpoint doesn't exist, use mock data based on existing products
+      setBestsellers([]);
+    }
+  };
+
+  // Get unique categories
+  const getUniqueCategories = () => {
+    const categories = products
+      .map(product => product.category)
+      .filter(category => category && category.trim() !== '')
+      .filter((category, index, arr) => arr.indexOf(category) === index)
+      .sort();
+    return categories;
+  };
+
+  // Filter products based on search and category
+  const getFilteredProducts = () => {
+    let filtered = products;
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(product => 
+        (product.name && product.name.toLowerCase().includes(search)) ||
+        (product.brand && product.brand.toLowerCase().includes(search)) ||
+        (product.category && product.category.toLowerCase().includes(search))
+      );
+    }
+
+    // Apply category filter
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(product => product.category === selectedCategory);
+    }
+
+    return filtered;
+  };
+
+  // Get products to display based on view mode
+  const getDisplayProducts = () => {
+    switch (viewMode) {
+      case 'bestsellers':
+        // Show bestsellers first, then other products
+        const bestsellerIds = bestsellers.map(b => b.product_id);
+        const bestsellerProducts = products.filter(p => bestsellerIds.includes(p.id));
+        return bestsellerProducts.length > 0 ? bestsellerProducts : products.slice(0, 12);
+      
+      case 'category':
+        return getFilteredProducts();
+      
+      default:
+        return getFilteredProducts();
     }
   };
 
@@ -160,42 +226,321 @@ const POSInterface = () => {
           onError={(error) => setMessage(error)}
         />
         
-        {/* Quick Product Selection */}
+        {/* Manual Search and Product Selection */}
         <div style={{ marginTop: '20px' }}>
-          <h3>Quick Product Selection</h3>
+          <h3>Product Search & Selection</h3>
+          
+          {/* Search Bar */}
+          <div style={{ marginBottom: '15px' }}>
+            <input
+              type="text"
+              placeholder="🔍 Search by name, brand, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#007bff'}
+              onBlur={(e) => e.target.style.borderColor = '#ddd'}
+            />
+          </div>
+
+          {/* View Mode Tabs */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '5px', 
+            marginBottom: '15px',
+            borderBottom: '1px solid #ddd'
+          }}>
+            <button
+              onClick={() => setViewMode('all')}
+              style={{
+                padding: '10px 15px',
+                border: 'none',
+                borderBottom: viewMode === 'all' ? '3px solid #007bff' : '3px solid transparent',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'all' ? 'bold' : 'normal',
+                color: viewMode === 'all' ? '#007bff' : '#666'
+              }}
+            >
+              🛍️ All Products
+            </button>
+            <button
+              onClick={() => setViewMode('bestsellers')}
+              style={{
+                padding: '10px 15px',
+                border: 'none',
+                borderBottom: viewMode === 'bestsellers' ? '3px solid #007bff' : '3px solid transparent',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'bestsellers' ? 'bold' : 'normal',
+                color: viewMode === 'bestsellers' ? '#007bff' : '#666'
+              }}
+            >
+              ⭐ Bestsellers
+            </button>
+            <button
+              onClick={() => setViewMode('category')}
+              style={{
+                padding: '10px 15px',
+                border: 'none',
+                borderBottom: viewMode === 'category' ? '3px solid #007bff' : '3px solid transparent',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'category' ? 'bold' : 'normal',
+                color: viewMode === 'category' ? '#007bff' : '#666'
+              }}
+            >
+              📂 By Category
+            </button>
+          </div>
+
+          {/* Category Filter (shown when in category mode) */}
+          {viewMode === 'category' && (
+            <div style={{ marginBottom: '15px' }}>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="all">All Categories</option>
+                {getUniqueCategories().map(category => (
+                  <option key={category} value={category}>
+                    📂 {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Products Grid */}
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '10px',
-            maxHeight: '400px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '12px',
+            maxHeight: '500px',
             overflowY: 'auto'
           }}>
-            {products.map(product => (
+            {getDisplayProducts().map(product => (
               <div
                 key={product.id}
                 onClick={() => addToCart(product)}
                 style={{
-                  padding: '10px',
                   border: '1px solid #ddd',
-                  borderRadius: '4px',
+                  borderRadius: '12px',
                   cursor: 'pointer',
                   backgroundColor: product.quantity <= 0 ? '#f8d7da' : '#fff',
-                  opacity: product.quantity <= 0 ? 0.6 : 1
+                  opacity: product.quantity <= 0 ? 0.6 : 1,
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+                onMouseEnter={(e) => {
+                  if (product.quantity > 0) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <div style={{ fontWeight: 'bold' }}>{product.name}</div>
-                <div>₱{product.price.toFixed(2)}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  Stock: {product.quantity}
+                {/* Bestseller Badge */}
+                {viewMode === 'bestsellers' && bestsellers.some(b => b.product_id === product.id) && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px',
+                    backgroundColor: '#ffc107',
+                    color: '#000',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    zIndex: 2
+                  }}>
+                    ⭐ HOT
+                  </div>
+                )}
+
+                {/* Product Image */}
+                <div style={{
+                  height: '120px',
+                  backgroundColor: '#f8f9fa',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative'
+                }}>
+                  {product.image_url ? (
+                    <img
+                      src={`${API_BASE}${product.image_url}`}
+                      alt={product.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails to load
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  
+                  {/* Fallback placeholder */}
+                  <div style={{
+                    display: product.image_url ? 'none' : 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%',
+                    fontSize: '48px',
+                    color: '#ccc'
+                  }}>
+                    📦
+                  </div>
                 </div>
-                {product.barcode && (
-                  <div style={{ fontSize: '10px', color: '#999' }}>
-                    {product.barcode}
+
+                {/* Product Info */}
+                <div style={{ padding: '12px' }}>
+                  <div style={{ 
+                    fontWeight: 'bold', 
+                    marginBottom: '6px',
+                    fontSize: '14px',
+                    lineHeight: '1.3',
+                    minHeight: '36px',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {product.name}
+                  </div>
+                  
+                  {product.brand && (
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: '#007bff', 
+                      fontWeight: '500', 
+                      marginBottom: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      🏷️ {product.brand}
+                    </div>
+                  )}
+                  
+                  <div style={{ 
+                    fontSize: '18px', 
+                    fontWeight: 'bold', 
+                    color: '#28a745', 
+                    marginBottom: '6px' 
+                  }}>
+                    ₱{product.price.toFixed(2)}
+                  </div>
+                  
+                  <div style={{ 
+                    fontSize: '11px', 
+                    color: product.quantity <= 5 ? '#dc3545' : '#666',
+                    marginBottom: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>📦 Stock: {product.quantity}</span>
+                    {product.quantity <= 5 && product.quantity > 0 && (
+                      <span style={{ 
+                        backgroundColor: '#ffc107', 
+                        color: '#000', 
+                        padding: '1px 4px', 
+                        borderRadius: '6px',
+                        fontSize: '9px',
+                        fontWeight: 'bold'
+                      }}>
+                        LOW
+                      </span>
+                    )}
+                  </div>
+                  
+                  {product.category && (
+                    <div style={{ fontSize: '10px', color: '#999', marginBottom: '4px' }}>
+                      📂 {product.category}
+                    </div>
+                  )}
+                  
+                  {product.barcode && (
+                    <div style={{ fontSize: '9px', color: '#ccc' }}>
+                      🔢 {product.barcode}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Out of Stock Overlay */}
+                {product.quantity <= 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(220, 53, 69, 0.9)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    borderRadius: '12px'
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '4px' }}>🚫</div>
+                      <div>OUT OF STOCK</div>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
           </div>
+
+          {/* No Results Message */}
+          {getDisplayProducts().length === 0 && (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px',
+              color: '#666',
+              fontSize: '16px'
+            }}>
+              {searchTerm ? (
+                <>
+                  🔍 No products found for "{searchTerm}"
+                  <br />
+                  <small>Try searching by name, brand, or category</small>
+                </>
+              ) : (
+                <>
+                  📦 No products available
+                  <br />
+                  <small>Add products in Inventory Management</small>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
