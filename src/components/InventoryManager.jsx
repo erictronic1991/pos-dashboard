@@ -142,17 +142,18 @@ const InventoryManager = () => {
     try {
       // Prepare data with proper types
       const submitData = {
-        name: formData.name.trim(),
-        price: parseFloat(formData.price),
-        quantity: formData.quantity ? parseInt(formData.quantity) : 0,
-        barcode: formData.barcode.trim() || undefined,
-        category: formData.category.trim() || undefined,
-        brand: formData.brand.trim() || undefined,
-        description: formData.description.trim() || undefined,
-        min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5
+      name: formData.name.trim(),
+      price: parseFloat(formData.price),
+      quantity: formData.quantity ? parseInt(formData.quantity) : 0,
+      barcode: formData.barcode.trim() || undefined,
+      category: formData.category.trim() || undefined,
+      brand: formData.brand.trim() || undefined,
+      description: formData.description.trim() || undefined,
+      min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5,
+      image_url: formData.image_url || undefined // ✅ Add this line
       };
 
-      console.log('Submitting data:', submitData); // Debug log
+      console.log('Submitting data with image:', submitData); // ✅ Debug log
 
       if (editingProduct) {
         // Update existing product
@@ -920,6 +921,7 @@ const InventoryManager = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
           <thead>
             <tr style={{ backgroundColor: '#f8f9fa' }}>
+              <th style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>Image</th>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Name</th>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Brand</th>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Category</th>
@@ -934,6 +936,25 @@ const InventoryManager = () => {
               <tr key={product.id} style={{ 
                 backgroundColor: product.quantity <= product.min_stock ? '#fff3cd' : 'white'
               }}>
+                
+                <td style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                  {product.image_url ? (
+                    <img
+                      src={`http://localhost:8000${product.image_url}`}
+                      alt={product.name}
+                      style={{
+                        width: '60px',
+                        height: '60px',
+                        objectFit: 'cover',
+                        borderRadius: '6px',
+                        border: '1px solid #ccc'
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '12px', color: '#999' }}>No image</span>
+                  )}
+                </td>
+
                 <td style={{ padding: '12px', border: '1px solid #dee2e6' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {product.quantity <= product.min_stock && (
