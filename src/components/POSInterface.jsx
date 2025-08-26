@@ -14,6 +14,9 @@ const POSInterface = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState('all'); // 'all', 'bestsellers', 'category'
   const [bestsellers, setBestsellers] = useState([]);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [changeAmount, setChangeAmount] = useState(0);
+
 
   const API_BASE = 'http://localhost:8000';
 
@@ -28,6 +31,16 @@ const POSInterface = () => {
     loadProducts();
     loadBestsellers();
   }, []);
+
+  //Change amount
+  useEffect(() => {
+    const payment = parseFloat(paymentAmount);
+    if (!isNaN(payment)) {
+      setChangeAmount(payment - total);
+    } else {
+      setChangeAmount(0);
+    }
+  }, [paymentAmount, total]);
 
   const loadProducts = async () => {
     try {
@@ -545,150 +558,122 @@ const POSInterface = () => {
       </div>
 
       {/* Right Panel - Cart and Checkout */}
-      <div style={{ flex: 1, minWidth: '400px' }}>
-        <div style={{ 
-          border: '2px solid #ddd', 
-          borderRadius: '8px', 
-          padding: '20px',
-          backgroundColor: '#f9f9f9'
-        }}>
-          <h3>Shopping Cart</h3>
-          
-          {cart.length === 0 ? (
-            <p>Cart is empty</p>
-          ) : (
-            <div>
-              {cart.map(item => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '10px',
-                    borderBottom: '1px solid #eee'
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold' }}>{item.name}</div>
-                    <div style={{ fontSize: '14px', color: '#666' }}>
-                      ₱{item.price.toFixed(2)} each
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <button
-                      onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        border: '1px solid #ddd',
-                        backgroundColor: '#fff',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      -
-                    </button>
-                    <span style={{ minWidth: '30px', textAlign: 'center' }}>
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        border: '1px solid #ddd',
-                        backgroundColor: '#fff',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      +
-                    </button>
-                    <div style={{ minWidth: '80px', textAlign: 'right' }}>
-                      ₱{(item.price * item.quantity).toFixed(2)}
-                    </div>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      style={{
-                        padding: '5px 10px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      <div style={{ flex: 1, minWidth: '400px', maxWidth: '600px', margin: '0 auto' }}>
 
-          {/* Total and Payment */}
-          <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #ddd' }}>
-            <div style={{ 
-              fontSize: '24px', 
-              fontWeight: 'bold', 
-              textAlign: 'right',
-              marginBottom: '20px'
+        {/* 🛒 Shopping Cart */}
+          <div style={{
+            border: '2px dashed #ccc',           // Dashed border for receipt feel
+            borderRadius: '4px',                 // Slightly sharper corners
+            padding: '20px',
+            backgroundColor: '#fff',             // White like receipt paper
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)', // Soft shadow for depth
+            maxWidth: '400px',                   // Narrower width
+            margin: '0 auto 20px',                // Centered with bottom spacing
+            textAlign: 'right'
+          }}>
+        
+        <h3>💵 Payment Given</h3>
+        <input
+              type="number"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              placeholder="Enter amount given"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '7px',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                fontSize: '24px',
+                fontWeight: 'bold',
+                textAlign: 'right'
+              }}
+          />
+        <h3>🛒 Shopping Cart</h3>
+        {cart.length === 0 ? (
+          <p>Cart is empty</p>
+        ) : (
+          cart.map(item => (
+            <div key={item.id} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '10px',
+              borderBottom: '1px solid #eee'
             }}>
-              Total: ₱{total.toFixed(2)}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 'bold' }}>{item.name}</div>
+                <div style={{ fontSize: '14px', color: '#666' }}>
+                  ₱{item.price.toFixed(2)} each
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button onClick={() => updateCartQuantity(item.id, item.quantity - 1)} style={qtyButton}>-</button>
+                <span style={{ minWidth: '30px', textAlign: 'center' }}>{item.quantity}</span>
+                <button onClick={() => updateCartQuantity(item.id, item.quantity + 1)} style={qtyButton}>+</button>
+                <div style={{ minWidth: '80px', textAlign: 'right' }}>
+                  ₱{(item.price * item.quantity).toFixed(2)}
+                </div>
+                <button onClick={() => removeFromCart(item.id)} style={removeButton}>Remove</button>
+              </div>
             </div>
+          ))
+        )}
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>
-                Payment Method:
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px'
-                }}
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="gcash">GCash</option>
-                <option value="paymaya">PayMaya</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={clearCart}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                Clear Cart
-              </button>
-              <button
-                onClick={processSale}
-                disabled={cart.length === 0 || isProcessing}
-                style={{
-                  flex: 2,
-                  padding: '12px',
-                  backgroundColor: cart.length === 0 || isProcessing ? '#ccc' : '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: cart.length === 0 || isProcessing ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {isProcessing ? 'Processing...' : 'Complete Sale'}
-              </button>
-            </div>
+        {/* Total and Payment Method */}
+        <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #ddd' }}>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'right', marginBottom: '20px' }}>
+            Total: ₱{total.toFixed(2)}
           </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Payment Method:</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="gcash">GCash</option>
+              <option value="paymaya">PayMaya</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={clearCart} style={clearButton}>Clear Cart</button>
+            <button
+              onClick={processSale}
+              disabled={cart.length === 0 || isProcessing}
+              style={{
+                ...completeButton,
+                backgroundColor: cart.length === 0 || isProcessing ? '#ccc' : '#28a745',
+                cursor: cart.length === 0 || isProcessing ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isProcessing ? 'Processing...' : 'Complete Sale'}
+            </button>
+          </div>
+        </div>
+          </div>
+
+        {/* 💸 Change Due */}
+        <div style={{
+          textAlign: 'right',
+          fontSize: '20px',
+          fontWeight: 'bold',
+          padding: '10px',
+          backgroundColor: '#e2f0d9',
+          border: '1px solid #c3e6cb',
+          borderRadius: '6px',
+          marginBottom: '20px'
+        }}>
+        Change Due: ₱{(paymentAmount - total > 0 ? paymentAmount - total : 0).toFixed(2)}
         </div>
 
         {/* Message Display */}
@@ -716,9 +701,46 @@ const POSInterface = () => {
             </button>
           </div>
         )}
+
+
       </div>
     </div>
   );
+};
+
+const qtyButton = {
+  width: '30px',
+  height: '30px',
+  border: '1px solid #ddd',
+  backgroundColor: '#fff',
+  cursor: 'pointer'
+};
+
+const removeButton = {
+  padding: '5px 10px',
+  backgroundColor: '#dc3545',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer'
+};
+
+const clearButton = {
+  flex: 1,
+  padding: '12px',
+  backgroundColor: '#6c757d',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer'
+};
+
+const completeButton = {
+  flex: 2,
+  padding: '12px',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px'
 };
 
 export default POSInterface;
