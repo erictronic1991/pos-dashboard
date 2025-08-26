@@ -251,7 +251,7 @@ const POSInterface = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                width: '100%',
+                width: '90%',
                 padding: '12px',
                 border: '2px solid #ddd',
                 borderRadius: '8px',

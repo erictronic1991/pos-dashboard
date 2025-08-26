@@ -18,6 +18,8 @@ const SalesReports = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [salesDetails, setSalesDetails] = useState([]);
+
 
   const API_BASE = 'http://localhost:8000';
 
@@ -25,6 +27,14 @@ const SalesReports = () => {
     loadSales();
     loadAnalytics();
   }, [dateRange, selectedPeriod]);
+
+  useEffect(() => {
+  axios.get(`${API_BASE}/sales/details`)
+    .then(res => setSalesDetails(res.data))
+    .catch(err => console.error('Error loading sales details:', err));
+  }, []);
+
+
 
   const loadSales = async () => {
     try {
@@ -104,6 +114,20 @@ const SalesReports = () => {
       currency: 'PHP'
     }).format(amount);
   };
+
+  const thStyle = {
+  padding: '12px',
+  border: '1px solid #dee2e6',
+  textAlign: 'left',
+  backgroundColor: '#f8f9fa'
+  };
+
+  const tdStyle = {
+  padding: '12px',
+  border: '1px solid #dee2e6',
+  verticalAlign: 'top'
+  };
+
 
   const exportToCSV = () => {
     const headers = ['Date', 'Transaction ID', 'Items', 'Total', 'Payment Method', 'Status'];
@@ -659,8 +683,56 @@ const SalesReports = () => {
           </div>
         </div>
       )}
+    
+    {/* Detailed Transaction Log */}
+    {salesDetails.length > 0 && (
+      <div style={{
+        backgroundColor: 'white',
+        border: '1px solid #dee2e6',
+        borderRadius: '8px',
+        padding: '20px',
+        marginTop: '30px',
+        marginBottom: '30px'
+      }}>
+        <h3>🧾 All Transactions</h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>🕒 Timestamp</th>
+                <th style={thStyle}>🛒 Items</th>
+                <th style={thStyle}>💰 Total</th>
+                <th style={thStyle}>💳 Payment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesDetails.map(sale => (
+                <tr key={sale.id}>
+                  <td style={tdStyle}>{formatDate(sale.created_at)}</td>
+                  <td style={tdStyle}>
+                    <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                      {sale.items.map((item, idx) => (
+                        <li key={idx}>
+                          {item.name} × {item.quantity} — ₱{(item.price * item.quantity).toFixed(2)}
+                        </li>
+                      ))}
+                    </ul>
+                    </td>
+                    <td style={tdStyle}>₱{sale.total.toFixed(2)}</td>
+                    <td style={tdStyle}>{sale.paymentMethod}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+  </div>
+)}
+
+
     </div>
   );
 };
+
+
 
 export default SalesReports;
