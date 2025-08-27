@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import SalesChart from "./SalesChart";
+
 
 const SalesReports = () => {
   const [sales, setSales] = useState([]);
@@ -33,6 +35,35 @@ const SalesReports = () => {
     .then(res => setSalesDetails(res.data))
     .catch(err => console.error('Error loading sales details:', err));
   }, []);
+
+  useEffect(() => {
+  axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
+    .then(res => {
+      const analyticsData = Array.isArray(res.data) ? res.data : [];
+      setAnalytics(analyticsData);
+
+      // ✅ Calculate totals from analytics
+      const total = analyticsData.reduce((sum, day) => sum + day.daily_total, 0);
+      const transactions = analyticsData.reduce((sum, day) => sum + day.transaction_count, 0);
+
+      setTotalSales(total);
+      setTotalTransactions(transactions);
+    })
+    .catch(err => console.error('Error loading analytics:', err));
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+  const today = new Date();
+  const pastDate = new Date();
+  pastDate.setDate(today.getDate() - parseInt(selectedPeriod));
+
+  setDateRange({
+    startDate: pastDate.toISOString().split('T')[0],
+    endDate: today.toISOString().split('T')[0]
+  });
+  }, [selectedPeriod]);
+
+
 
 
 
@@ -349,7 +380,7 @@ const SalesReports = () => {
         </div>
       </div>
 
-      {/* Analytics Chart Data */}
+      {/* Analytics Chart Data 
       {analytics.length > 0 && (
         <div style={{
           backgroundColor: 'white',
@@ -390,7 +421,7 @@ const SalesReports = () => {
             </table>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Sales Transactions */}
       <div style={{
@@ -399,6 +430,11 @@ const SalesReports = () => {
         borderRadius: '8px',
         padding: '20px'
       }}>
+
+        <div style={{ marginBottom: '30px' }}>
+          <SalesChart />
+        </div>
+
         <h3>Recent Transactions</h3>
         {sales.length === 0 ? (
           <p>No sales found for the selected date range.</p>
@@ -684,7 +720,7 @@ const SalesReports = () => {
         </div>
       )}
     
-    {/* Detailed Transaction Log */}
+    {/* Detailed Transaction Log 
     {salesDetails.length > 0 && (
       <div style={{
         backgroundColor: 'white',
@@ -725,8 +761,11 @@ const SalesReports = () => {
             </tbody>
           </table>
         </div>
-  </div>
-)}
+      </div>
+    )} */}
+
+
+
 
 
     </div>

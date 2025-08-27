@@ -589,6 +589,25 @@ const POSInterface = () => {
                 textAlign: 'right'
               }}
           />
+
+          {/* Formatted display */}
+          {paymentAmount && (
+            <div style={{
+            marginTop: '8px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            textAlign: 'right',
+            color: '#28a745'
+          }}>
+            ₱{parseFloat(paymentAmount).toLocaleString('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}
+          </div>
+          )}
+
+
+
         <h3>🛒 Shopping Cart</h3>
         {cart.length === 0 ? (
           <p>Cart is empty</p>
@@ -661,6 +680,8 @@ const POSInterface = () => {
           </div>
         </div>
           </div>
+
+        
 
         {/* 💸 Change Due */}
         <div style={{
