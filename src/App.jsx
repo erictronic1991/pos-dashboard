@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import './App.css'; // Create and import a CSS file for styles
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(() => {
@@ -9,7 +10,7 @@ function App() {
   });
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div className="app-container">
       {loggedIn ? (
         <DashboardPage />
       ) : (

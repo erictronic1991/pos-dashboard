@@ -16,6 +16,8 @@ const POSInterface = () => {
   const [bestsellers, setBestsellers] = useState([]);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [changeAmount, setChangeAmount] = useState(0);
+  const [customerName, setCustomerName] = useState('');
+
 
 
   const API_BASE = 'http://localhost:8000';
@@ -205,7 +207,8 @@ const POSInterface = () => {
           quantity: item.quantity
         })),
         total: total,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        customer_name: customerName || 'cash' // fallback if empty
       };
 
       const response = await axios.post(`${API_BASE}/sales`, saleData);
@@ -658,7 +661,7 @@ const POSInterface = () => {
               }}
             >
               <option value="cash">Cash</option>
-              <option value="card">Card</option>
+              <option value="credit">Credit</option>
               <option value="gcash">GCash</option>
               <option value="paymaya">PayMaya</option>
             </select>
@@ -679,7 +682,7 @@ const POSInterface = () => {
             </button>
           </div>
         </div>
-          </div>
+        </div>
 
         
 
@@ -696,6 +699,27 @@ const POSInterface = () => {
         }}>
         Change Due: ₱{(paymentAmount - total > 0 ? paymentAmount - total : 0).toFixed(2)}
         </div>
+
+        {/* Customer Name */}
+        <label style={{ display: 'block', marginBottom: '10px' }}>
+        👤 Customer Name:
+          <input
+            type="text"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="e.g. Mang Tonyo"
+            style={{
+            width: '100%',
+            padding: '8px',
+            marginTop: '5px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            fontSize: '14px'
+            }}
+          />
+        </label>
+
+
 
         {/* Message Display */}
         {message && (

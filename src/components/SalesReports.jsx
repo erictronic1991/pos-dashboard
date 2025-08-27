@@ -25,16 +25,22 @@ const SalesReports = () => {
 
   const API_BASE = 'http://localhost:8000';
 
+
   useEffect(() => {
     loadSales();
     loadAnalytics();
   }, [dateRange, selectedPeriod]);
 
   useEffect(() => {
-  axios.get(`${API_BASE}/sales/details`)
+    axios.get(`${API_BASE}/sales/details`, {
+      params: {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate
+      }
+    })
     .then(res => setSalesDetails(res.data))
     .catch(err => console.error('Error loading sales details:', err));
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
   axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
@@ -63,6 +69,20 @@ const SalesReports = () => {
   });
   }, [selectedPeriod]);
 
+
+  const handleMarkAsPaid = (sale) => {
+  axios.put(`${API_BASE}/sales/${sale.id}/mark-paid`)
+    .then(() => {
+      // ✅ Refresh the transaction list
+      axios.get(`${API_BASE}/sales/details`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
+        }
+      }).then(res => setSalesDetails(res.data));
+    })
+    .catch(err => console.error('Error marking sale as paid:', err));
+};
 
 
 
@@ -380,49 +400,6 @@ const SalesReports = () => {
         </div>
       </div>
 
-      {/* Analytics Chart Data 
-      {analytics.length > 0 && (
-        <div style={{
-          backgroundColor: 'white',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          padding: '20px',
-          marginBottom: '30px'
-        }}>
-          <h3>Daily Sales Trend</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Date</th>
-                  <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>Transactions</th>
-                  <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>Total Sales</th>
-                  <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>Average</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analytics.map(day => (
-                  <tr key={day.date}>
-                    <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                      {new Date(day.date).toLocaleDateString('en-PH')}
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>
-                      {day.transaction_count}
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>
-                      {formatCurrency(day.daily_total)}
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>
-                      {formatCurrency(day.transaction_count > 0 ? day.daily_total / day.transaction_count : 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )} */}
-
       {/* Sales Transactions */}
       <div style={{
         backgroundColor: 'white',
@@ -435,133 +412,192 @@ const SalesReports = () => {
           <SalesChart />
         </div>
 
-        <h3>Recent Transactions</h3>
-        {sales.length === 0 ? (
-          <p>No sales found for the selected date range.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Date</th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>ID</th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Items</th>
-                  <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>Total</th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>Payment</th>
-                  <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>Status</th>
-                  <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map(sale => (
-                  <tr key={sale.id} style={{
-                    backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
-                  }}>
-                    <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                      {formatDate(sale.timestamp)}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                      #{sale.id}
-                      {sale.status === 'cancelled' && (
-                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                          Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                      <div>
-                        {sale.items.map((item, index) => (
-                          <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
-                            {item.name} × {item.quantity} @ {formatCurrency(item.price)}
-                          </div>
-                        ))}
-                      </div>
-                      {sale.cancellation_reason && (
-                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
-                          Reason: {sale.cancellation_reason}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ 
-                      padding: '10px', 
-                      textAlign: 'right', 
-                      border: '1px solid #dee2e6',
-                      fontWeight: 'bold',
-                      textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
-                      color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
-                    }}>
-                      {formatCurrency(sale.total)}
-                      {sale.status === 'cancelled' && (
-                        <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                          REFUNDED
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                      <span style={{
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        backgroundColor: 
-                          sale.payment_method === 'cash' ? '#d4edda' :
-                          sale.payment_method === 'card' ? '#cce5ff' :
-                          sale.payment_method === 'gcash' ? '#fff3cd' : '#f8d7da',
-                        color:
-                          sale.payment_method === 'cash' ? '#155724' :
-                          sale.payment_method === 'card' ? '#004085' :
-                          sale.payment_method === 'gcash' ? '#856404' : '#721c24'
-                      }}>
-                        {sale.payment_method.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        backgroundColor: 
-                          sale.status === 'cancelled' ? '#dc3545' :
-                          sale.modified_at ? '#ffc107' : '#28a745',
-                        color: 
-                          sale.status === 'cancelled' ? 'white' :
-                          sale.modified_at ? '#000' : 'white'
-                      }}>
-                        {sale.status === 'cancelled' ? '❌ CANCELLED' :
-                         sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-                      {sale.status !== 'cancelled' && (
-                        <button
-                          onClick={() => handleCancelSale(sale)}
-                          style={{
-                            padding: '4px 8px',
-                            backgroundColor: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '11px'
-                          }}
-                          title="Cancel Transaction"
-                        >
-                          🗑️ Cancel
-                        </button>
-                      )}
-                      {sale.status === 'cancelled' && (
-                        <span style={{ fontSize: '12px', color: '#666' }}>
-                          No actions
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {/* Detailed Transaction Log */}
+{salesDetails.length > 0 && (
+  <div style={{
+    backgroundColor: 'white',
+    border: '1px solid #dee2e6',
+    borderRadius: '8px',
+    padding: '20px',
+    marginTop: '30px',
+    marginBottom: '30px'
+  }}>
+    
+    <h3>🧾 All Transactions</h3>
+    {salesDetails.length === 0 ? (
+      <p>No transactions found.</p>
+    ) : (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa' }}>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🕒 Date</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🆔 ID</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🛒 Items</th>
+              <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>💰 Total</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>💳 Payment</th>
+              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>📊 Status</th>
+              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>⚡ Actions</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📝 Remarks</th>
+              <th style={{ padding: '10px', border: '1px solid #dee2e6' }}>👤 Customer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {salesDetails.map(sale => (
+              <tr key={sale.id} style={{
+                backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
+              }}>
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  {formatDate(sale.created_at)}
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  #{sale.id}
+                  {sale.status === 'cancelled' && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                      Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <div>
+                    {sale.items.map((item, index) => (
+                      <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
+                        {item.name} × {item.quantity} @ ₱{item.price.toFixed(2)}
+                      </div>
+                    ))}
+                  </div>
+                  {sale.cancellation_reason && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
+                      Reason: {sale.cancellation_reason}
+                    </div>
+                  )}
+                </td>
+                <td style={{ 
+                  padding: '10px', 
+                  textAlign: 'right', 
+                  border: '1px solid #dee2e6',
+                  fontWeight: 'bold',
+                  textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
+                  color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
+                }}>
+                  ₱{sale.total.toFixed(2)}
+                  {sale.status === 'cancelled' && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                      REFUNDED
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    backgroundColor: 
+                      sale.paymentMethod === 'cash' ? '#d4edda' :
+                      sale.paymentMethod === 'credit' ? '#cce5ff' :
+                      sale.paymentMethod === 'gcash' ? '#fff3cd' : '#f8d7da',
+                    color:
+                      sale.paymentMethod === 'cash' ? '#155724' :
+                      sale.paymentMethod === 'credit' ? '#004085' :
+                      sale.paymentMethod === 'gcash' ? '#856404' : '#721c24'
+                  }}>
+                    {sale.paymentMethod.toUpperCase()}
+                  </span>
+                </td>
+                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                  <span style={{
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    backgroundColor: 
+                    sale.status === 'cancelled' ? '#dc3545' :
+                    sale.status === 'unpaid' ? '#ffc107' :
+                    sale.modified_at ? '#17a2b8' : '#28a745',
+                    color: 
+                    sale.status === 'cancelled' ? 'white' :
+                    sale.status === 'unpaid' ? '#000' :
+                    sale.modified_at ? 'white' : 'white'
+                  }}>
+                  {sale.status === 'cancelled' ? '❌ CANCELLED' :
+                    sale.status === 'unpaid' ? '💸 UNPAID' :
+                    sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
+                  </span>
+
+                </td>
+                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+
+                  {sale.status === 'unpaid' ? (
+                  <button
+                  onClick={() => handleMarkAsPaid(sale)}
+                  style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px'
+                }}
+                title="Mark as Paid"
+                  >
+                  ✅ Mark As Paid
+                  </button>
+                  ) : sale.status !== 'cancelled' ? (
+                  <button
+                  onClick={() => handleCancelSale(sale)}
+                  style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px'
+                }}
+                title="Cancel Transaction"
+                >
+                🗑️ Cancel
+                </button>
+                ) : (
+                <span style={{ fontSize: '12px', color: '#666' }}>
+                No actions
+                </span>
+                )}
+                </td>
+                {/*Column 8: Remarks*/}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  {sale.status === 'cancelled' && sale.cancellation_reason ? (
+                  <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
+                  Reason: {sale.cancellation_reason}
+                  </span>
+                ) : sale.status === 'completed' && sale.paid_at ? (
+                <span style={{ color: '#28a745' }}>
+                Paid On: {formatDate(sale.paid_at)}
+                </span>
+                ) : sale.status === 'unpaid' ? (
+                <span style={{ color: '#ffc107' }}>
+                Awaiting payment
+                </span>
+                ) : (
+                <span style={{ color: '#999' }}>No remarks</span>
+                )}
+                </td>
+                {/*Column 9: Customers*/}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                {sale.customer_name || <span style={{ color: '#999' }}>—</span>}
+                </td>
+
+              </tr>
+            ))}
+            </tbody>
+          </table>
+          </div>
+          )}
+          </div>
+          )}
 
       {/* Cancel Transaction Modal */}
       {showCancelModal && (
@@ -720,58 +756,7 @@ const SalesReports = () => {
         </div>
       )}
     
-    {/* Detailed Transaction Log 
-    {salesDetails.length > 0 && (
-      <div style={{
-        backgroundColor: 'white',
-        border: '1px solid #dee2e6',
-        borderRadius: '8px',
-        padding: '20px',
-        marginTop: '30px',
-        marginBottom: '30px'
-      }}>
-        <h3>🧾 All Transactions</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>🕒 Timestamp</th>
-                <th style={thStyle}>🛒 Items</th>
-                <th style={thStyle}>💰 Total</th>
-                <th style={thStyle}>💳 Payment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {salesDetails.map(sale => (
-                <tr key={sale.id}>
-                  <td style={tdStyle}>{formatDate(sale.created_at)}</td>
-                  <td style={tdStyle}>
-                    <ul style={{ paddingLeft: '20px', margin: 0 }}>
-                      {sale.items.map((item, idx) => (
-                        <li key={idx}>
-                          {item.name} × {item.quantity} — ₱{(item.price * item.quantity).toFixed(2)}
-                        </li>
-                      ))}
-                    </ul>
-                    </td>
-                    <td style={tdStyle}>₱{sale.total.toFixed(2)}</td>
-                    <td style={tdStyle}>{sale.paymentMethod}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )} */}
-
-
-
-
-
     </div>
   );
 };
-
-
-
 export default SalesReports;
