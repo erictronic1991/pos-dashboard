@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import POSInterface from '../components/POSInterface';
 import InventoryManager from '../components/InventoryManager';
 import SalesReports from '../components/SalesReports';
+import SalesAnalytics from '../components/SalesAnalytics';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('pos');
@@ -40,10 +41,17 @@ export default function DashboardPage() {
     },
     { 
       id: 'reports', 
-      label: 'Sales Reports', 
-      icon: '📊',
+      label: 'Transaction History', 
+      icon: '📋',
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      description: 'Analytics & insights'
+      description: 'Sales & Creditor Logs'
+    },
+    { 
+      id: 'analytics', 
+      label: 'Sales Dashboard', 
+      icon: '💹',
+      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      description: 'Analytics & Insights'
     }
   ];
 
@@ -57,6 +65,8 @@ export default function DashboardPage() {
         return <InventoryManager />;
       case 'reports':
         return <SalesReports />;
+      case 'analytics':
+        return <SalesAnalytics />;
       default:
         return <POSInterface />;
     }

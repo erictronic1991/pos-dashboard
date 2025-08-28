@@ -1,6 +1,20 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import SalesChart from "./SalesChart";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+import isBetween from 'dayjs/plugin/isBetween';
+
+dayjs.extend(isBetween);
+
+const today = dayjs().format('YYYY-MM-DD'); 
+
+
 
 
 const SalesReports = () => {
@@ -10,7 +24,7 @@ const SalesReports = () => {
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
-  const [selectedPeriod, setSelectedPeriod] = useState('7');
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [totalSales, setTotalSales] = useState(0);
   const [totalTransactions, setTotalTransactions] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -21,10 +35,20 @@ const SalesReports = () => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [salesDetails, setSalesDetails] = useState([]);
+  const [filterUnpaidOnly, setFilterUnpaidOnly] = useState(false);
+  const [filterCustomer, setFilterCustomer] = useState('');
+  //const [startDate, setStartDate] = useState('');
+  //const [endDate, setEndDate] = useState('');
+  const today = new Date();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(today.getDate() - 7);
 
+
+  const [startDate, setStartDate] = useState(sevenDaysAgo.toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  
 
   const API_BASE = 'http://localhost:8000';
-
 
   useEffect(() => {
     loadSales();
@@ -58,16 +82,29 @@ const SalesReports = () => {
     .catch(err => console.error('Error loading analytics:', err));
   }, [selectedPeriod]);
 
-  useEffect(() => {
-  const today = new Date();
-  const pastDate = new Date();
-  pastDate.setDate(today.getDate() - parseInt(selectedPeriod));
+  
+  //useEffect(() => {
+  //const today = new Date();
+  //const pastDate = new Date();
+  //pastDate.setDate(today.getDate() - parseInt(selectedPeriod));
 
-  setDateRange({
-    startDate: pastDate.toISOString().split('T')[0],
-    endDate: today.toISOString().split('T')[0]
-  });
+  //setDateRange({
+  //  startDate: pastDate.toISOString().split('T')[0],
+  //  endDate: today.toISOString().split('T')[0]
+  //});
+  //}, [selectedPeriod]);
+
+  useEffect(() => {
+  const today = dayjs().format('YYYY-MM-DD');
+
+  if (selectedPeriod === 'today') {
+    setDateRange({ startDate: today, endDate: today });
+  } else {
+    const start = dayjs().subtract(Number(selectedPeriod) - 1, 'day').format('YYYY-MM-DD');
+    setDateRange({ startDate: start, endDate: today });
+  }
   }, [selectedPeriod]);
+
 
 
   const handleMarkAsPaid = (sale) => {
@@ -251,6 +288,9 @@ const SalesReports = () => {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <h2>Sales Reports</h2>
+
+
+        
         <div style={{ 
           padding: '40px', 
           fontSize: '18px', 
@@ -262,9 +302,72 @@ const SalesReports = () => {
     );
   }
 
+  const filteredSales = salesDetails.filter(sale => {
+  const matchesStatus = filterUnpaidOnly ? sale.status === 'unpaid' : true;
+  const matchesCustomer = filterCustomer.trim()
+    ? sale.customer_name.toLowerCase().includes(filterCustomer.trim().toLowerCase())
+    : true;
+  return matchesStatus && matchesCustomer;
+  });
+
+  console.log('Raw salesDetails:', salesDetails);
+
+  //const validStart = dayjs(startDate).startOf('day'); // 00:00 AM
+  //const validEnd = dayjs(endDate).endOf('day');       // 11:59 PM
+  //const formattedStart = validStart.format('MMM D, YYYY hh:mm A');
+  //const formattedEnd = validEnd.format('MMM D, YYYY hh:mm A');
+
+  const validStart = dayjs(dateRange.startDate).startOf('day');
+  const validEnd = dayjs(dateRange.endDate).endOf('day');
+  const formattedStart = validStart.format('MMM D, YYYY hh:mm A');
+  const formattedEnd = validEnd.format('MMM D, YYYY hh:mm A');
+
+
+  let unpaidSummary = [];
+  try {
+    unpaidSummary = salesDetails.filter(sale => {
+      const isUnpaid = sale.status === 'unpaid';
+      const matchesCustomer = filterCustomer.trim()
+        ? sale.customer_name?.toLowerCase().includes(filterCustomer.trim().toLowerCase())
+        : true;
+
+      const withinDateRange = (() => {
+        if (!sale.created_at || typeof sale.created_at !== 'string') return false;
+
+        const iso = sale.created_at.includes(' ') ? sale.created_at.replace(' ', 'T') : sale.created_at;
+        const parsed = dayjs(iso);
+
+        if (!parsed.isValid()) {
+          console.warn('Invalid created_at:', sale.created_at);
+          return false;
+        }
+
+        return parsed.isBetween(validStart, validEnd, null, '[]');
+      })();
+
+      return isUnpaid && matchesCustomer && withinDateRange;
+      });
+    } catch (err) {
+      console.error('Error filtering unpaidSummary:', err);
+    }
+
+    console.log('Raw salesDetails:', salesDetails);
+    console.log('filterCustomer:', filterCustomer);
+    console.log('unpaidSummary:', unpaidSummary);
+    console.log('startDate:', startDate);
+    console.log('endDate:', endDate);
+
+
+    const totalOwed = unpaidSummary.reduce((sum, sale) => sum + sale.total, 0);
+
+    console.log('Unpaid summary count:', unpaidSummary.length);
+
+
+  
+
   return (
     <div style={{ padding: '20px' }}>
-      <h2>Sales Reports</h2>
+      <h2>-</h2>
 
       {/* Error Message */}
       {error && (
@@ -324,7 +427,7 @@ const SalesReports = () => {
           />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Analytics Period:</label>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Coverage Period:</label>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -334,6 +437,7 @@ const SalesReports = () => {
               borderRadius: '4px'
             }}
           >
+            <option value="today">Today</option> {/* ✅ New default */}
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
@@ -355,67 +459,59 @@ const SalesReports = () => {
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
-        <div style={{
-          backgroundColor: '#007bff',
-          color: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>Total Sales</h3>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            {formatCurrency(totalSales)}
-          </div>
-        </div>
-        <div style={{
-          backgroundColor: '#28a745',
-          color: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>Transactions</h3>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            {totalTransactions}
-          </div>
-        </div>
-        <div style={{
-          backgroundColor: '#17a2b8',
-          color: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>Average Sale</h3>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            {formatCurrency(totalTransactions > 0 ? totalSales / totalTransactions : 0)}
-          </div>
-        </div>
+      {/* Date Validation */}
+      {(!startDate || !endDate) && (
+      <div style={{ color: '#999', fontSize: '12px', marginBottom: '10px' }}>
+      Please select a valid date range to view summary.
       </div>
+      )}
 
-      {/* Sales Transactions */}
-      <div style={{
-        backgroundColor: 'white',
-        border: '1px solid #dee2e6',
-        borderRadius: '8px',
-        padding: '20px'
-      }}>
+      {/* Summary Row */}
+      {filterCustomer.trim() && unpaidSummary.length > 0 && (
+        <div style={{
+          backgroundColor: '#fff3cd',
+            border: '1px solid #ffeaa7',
+            borderRadius: '4px',
+            padding: '15px',
+            marginBottom: '20px',
+            fontSize: '20px',
+            color: '#856404',
+            fontFamily: 'monospace',
+            borderBottom: '1px dashed #ccc'
+          }}>
+          <strong>Summary:</strong> Si {filterCustomer.trim()} ay may utang na <strong>₱{totalOwed.toFixed(2)}</strong> from <strong>{formattedStart}</strong> to <strong>{formattedEnd}</strong>.
+          </div>
+      )}
 
-        <div style={{ marginBottom: '30px' }}>
-          <SalesChart />
-        </div>
+      {/* Filter Controls */}
+        <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={filterUnpaidOnly}
+              onChange={(e) => setFilterUnpaidOnly(e.target.checked)}
+            />
+            {' '}Show only unpaid transactions
+          </label>
+        </div >
 
-      </div>
+      {/* Creditor Filter */}
+        <input
+          type="text"
+          value={filterCustomer}
+          onChange={(e) => setFilterCustomer(e.target.value)}
+          placeholder="Filter by customer name"
+          style={{
+          padding: '8px',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          fontSize: '14px',
+          width: '250px'
+          }}
+          />
 
       {/* Detailed Transaction Log */}
-{salesDetails.length > 0 && (
+      {salesDetails.length > 0 && (
   <div style={{
     backgroundColor: 'white',
     border: '1px solid #dee2e6',
@@ -445,13 +541,22 @@ const SalesReports = () => {
             </tr>
           </thead>
           <tbody>
-            {salesDetails.map(sale => (
+            {filteredSales.map(sale => (
               <tr key={sale.id} style={{
                 backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
               }}>
-                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                  {formatDate(sale.created_at)}
-                </td>
+                <td>
+              {(() => {
+              try {
+              const raw = sale.created_at;
+                  if (!raw || typeof raw !== 'string') return '—';
+                    const iso = raw.replace(' ', 'T');
+                      return dayjs(iso).format('MMM D, YYYY h:mm A');
+                  } catch {
+                  return 'Invalid date';
+                  }
+                })()}
+              </td>
                 <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                   #{sale.id}
                   {sale.status === 'cancelled' && (
@@ -592,12 +697,12 @@ const SalesReports = () => {
 
               </tr>
             ))}
-            </tbody>
+          </tbody>
           </table>
           </div>
           )}
           </div>
-          )}
+      )}
 
       {/* Cancel Transaction Modal */}
       {showCancelModal && (
