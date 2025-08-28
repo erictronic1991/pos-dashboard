@@ -13,9 +13,7 @@ export default function DashboardPage() {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
-    
     setTimeout(() => setIsLoading(false), 800);
-    
     return () => clearInterval(timer);
   }, []);
 
@@ -95,7 +93,7 @@ export default function DashboardPage() {
             margin: '0 auto 24px'
           }}></div>
           <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 'bold' }}>
-            🏪 POShi AI Loading...
+            🏪 POShi Loading...
           </h2>
           <p style={{ margin: 0, fontSize: '16px', opacity: 0.9 }}>
             Setting up your sari-sari store dashboard
@@ -117,9 +115,36 @@ export default function DashboardPage() {
       background: 'linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%)',
       display: 'flex',
       flexDirection: 'column',
-      height: '100%',
+      height: '100vh',
       overflow: 'hidden'
     }}>
+      <style jsx global>{`
+        :root {
+          --header-height: 80px;
+          --nav-width: 80px; /* Fixed width for vertical nav on mobile */
+        }
+
+        @media (min-width: 768px) {
+          :root {
+            --nav-width: 200px; /* Wider nav on larger screens */
+          }
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+          header {
+            padding: 12px 16px !important;
+          }
+          main {
+            padding: 8px !important;
+          }
+        }
+      `}</style>
+
       <header style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         color: '#ffffff',
@@ -132,7 +157,8 @@ export default function DashboardPage() {
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        flexShrink: 0
+        flexShrink: 0,
+        height: 'var(--header-height)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{
@@ -146,14 +172,13 @@ export default function DashboardPage() {
           </div>
           <div>
             <h1 style={{ margin: '0 0 4px 0', fontSize: '28px', fontWeight: 'bold', textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)' }}>
-              POShi AI
+              POShi
             </h1>
             <p style={{ margin: 0, fontSize: '14px', opacity: 0.9, fontWeight: '500', color: '#e5e7eb' }}>
               Sari-Sari Store Management System
             </p>
           </div>
         </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <div style={{ fontSize: '14px', fontWeight: '600', opacity: 0.9, color: '#e5e7eb' }}>
@@ -163,7 +188,6 @@ export default function DashboardPage() {
               🕐 {currentTime.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
-          
           <button
             onClick={handleLogout}
             style={{
@@ -195,182 +219,76 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <nav style={{
-        background: '#ffffff',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '0 24px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-        position: 'sticky',
-        top: '80px',
-        zIndex: 999,
-        flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
+      <div style={{ display: 'flex', flex: '1 1 auto', overflow: 'hidden' }}>
+        <nav style={{
+          background: '#ffffff',
+          backdropFilter: 'blur(10px)',
+          borderRight: '1px solid #e5e7eb',
+          boxShadow: '2px 0 8px rgba(0, 0, 0, 0.05)',
+          position: 'sticky',
+          top: 'var(--header-height)',
+          marginTop: '-38px', // Added to move the nav upward
+          zIndex: 999,
+          zIndex: 999,
+          width: 'var(--nav-width)',
+          flexShrink: 0,
+          overflow: 'auto'
+        }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: '16px 24px',
-                border: 'none',
-                background: activeTab === tab.id ? tab.gradient : '#f9fafb',
-                color: activeTab === tab.id ? '#ffffff' : '#1f2937',
-                cursor: 'pointer',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: activeTab === tab.id ? '600' : '500',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                position: 'relative',
-                minWidth: '160px',
-                textAlign: 'center',
-                boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px'
+                justifyContent: 'center',
+                width: '100%',
+                padding: '16px 8px',
+                border: 'none',
+                background: activeTab === tab.id ? tab.gradient : 'transparent',
+                color: activeTab === tab.id ? '#ffffff' : '#1f2937',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: activeTab === tab.id ? '600' : '500',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                textAlign: 'center',
+                borderBottom: '1px solid #e5e7eb',
+                boxShadow: activeTab === tab.id ? 'inset 0 2px 6px rgba(0, 0, 0, 0.1)' : 'none',
+                whiteSpace: 'normal', /* Allow text to wrap */
+                overflow: 'visible' /* Prevent text cutoff */
               }}
               onMouseEnter={(e) => {
                 if (activeTab !== tab.id) {
-                  e.target.style.background = '#e5e7eb';
-                  e.target.style.color = '#374151';
+                  e.target.style.background = '#f0f2f5';
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== tab.id) {
-                  e.target.style.background = '#f9fafb';
-                  e.target.style.color = '#1f2937';
+                  e.target.style.background = 'transparent';
                 }
               }}
             >
-              <div style={{ fontSize: '20px' }}>{tab.icon}</div>
-              <div>{tab.label}</div>
-              {activeTab === tab.id && (
-                <div style={{ fontSize: '12px', opacity: 0.9, fontWeight: '400' }}>
-                  {tab.description}
-                </div>
-              )}
+              <span style={{ fontSize: '20px', marginBottom: '4px' }}>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <small style={{ fontSize: '10px', opacity: 0.7 }}>{tab.description}</small>
             </button>
           ))}
-        </div>
-      </nav>
+        </nav>
 
-      <main style={{ 
-        flex: 1,
-        padding: '16px',
-        width: '100%',
-        overflow: 'hidden'
-      }}>
-        <div style={{ 
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden'
+        <main style={{
+          flex: '1 1 auto',
+          overflow: 'auto',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100vh - var(--header-height))', /* Full height minus header */
+          minHeight: 0,
+          marginTop: '-20px'
         }}>
-          <div style={{
-            background: currentTab.gradient,
-            borderRadius: '16px',
-            padding: '16px 20px',
-            marginBottom: '16px',
-            color: '#ffffff',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            backdropFilter: 'blur(10px)',
-            width: '100%'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                fontSize: '32px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                padding: '12px',
-                backdropFilter: 'blur(10px)'
-              }}>
-                {currentTab.icon}
-              </div>
-              <div>
-                <h2 style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: 'bold' }}>
-                  {currentTab.label}
-                </h2>
-                <p style={{ margin: 0, fontSize: '16px', opacity: 0.9 }}>
-                  {currentTab.description}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.8)',
-            borderRadius: '16px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            backdropFilter: 'blur(10px)',
-            overflow: 'auto',
-            height: '100%',
-            width: '100%'
-          }}>
-            {renderContent()}
-          </div>
-        </div>
-      </main>
-
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-        
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        @media (max-width: 768px) {
-          nav div {
-            flex-direction: column !important;
-            gap: 8px !important;
-          }
-          
-          nav button {
-            min-width: auto !important;
-            padding: 12px 16px !important;
-          }
-          
-          header {
-            flex-direction: column !important;
-            gap: 16px !important;
-            text-align: center !important;
-          }
-          
-          header > div:first-child {
-            justify-content: center !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          main {
-            padding: 8px !important;
-          }
-          
-          nav {
-            padding: 0 8px !important;
-          }
-          
-          header {
-            padding: 12px 16px !important;
-          }
-        }
-        
-        .pos-interface,
-        .inventory-manager,
-        .sales-reports {
-          width: 100% !important;
-          max-width: none !important;
-          overflow-x: auto !important;
-          margin: 0 !important;
-        }
-        
-        table {
-          width: 100% !important;
-          max-width: none !important;
-        }
-      `}</style>
+          {renderContent()}
+        </main>
+      </div>
     </div>
   );
 }
