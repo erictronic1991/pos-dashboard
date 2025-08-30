@@ -43,6 +43,104 @@ const SalesReports = () => {
   
   const API_BASE = 'http://localhost:8000';
 
+  // Add this to your SalesReports.jsx component
+
+// Add new state for cash transactions
+const [cashTransactions, setCashTransactions] = useState([]);
+const [showAllTransactions, setShowAllTransactions] = useState(true);
+
+// Add useEffect to load cash transactions
+useEffect(() => {
+  loadCashTransactions();
+}, [dateRange]);
+
+// New function to load cash transactions
+const loadCashTransactions = async () => {
+  try {
+    const response = await axios.get(`${API_BASE}/cash/history`, {
+      params: {
+        startDate: dateRange.startDate + ' 00:00:00',
+        endDate: dateRange.endDate + ' 23:59:59'
+      }
+    });
+    setCashTransactions(response.data || []);
+  } catch (error) {
+    console.error('Error loading cash transactions:', error);
+    setCashTransactions([]);
+  }
+};
+
+// Function to combine and sort all transactions
+const getCombinedTransactions = () => {
+  const salesTransactions = salesDetails.map(sale => ({
+    ...sale,
+    type: 'sale',
+    transaction_date: sale.created_at,
+    amount: sale.total,
+    description: `Sale: ${sale.items.map(item => item.name).join(', ')}`,
+    payment_method: sale.paymentMethod || 'cash'
+  }));
+
+  const cashWithdrawals = cashTransactions
+    .filter(transaction => transaction.transaction_type === 'remove')
+    .map(transaction => ({
+      id: `cash_${transaction.id}`,
+      type: 'cash_withdrawal',
+      transaction_date: transaction.timestamp,
+      amount: Math.abs(transaction.amount), // Make positive for display
+      description: transaction.description || 'Cash withdrawal',
+      payment_method: transaction.payment_method || 'cash',
+      status: 'completed'
+    }));
+
+  const allTransactions = [...salesTransactions, ...cashWithdrawals];
+
+  // Sort by date (newest first)
+  return allTransactions.sort((a, b) => {
+    const dateA = new Date(a.transaction_date);
+    const dateB = new Date(b.transaction_date);
+    return dateB - dateA;
+  });
+};
+
+// Filter combined transactions
+const getFilteredCombinedTransactions = () => {
+  const combined = getCombinedTransactions();
+  
+  return combined.filter(transaction => {
+    // Apply existing filters
+    const matchesStatus = filterUnpaidOnly ? 
+      (transaction.type === 'sale' && transaction.status === 'unpaid') : true;
+    
+    const matchesCustomer = filterCustomer.trim() ?
+      (transaction.customer_name?.toLowerCase().includes(filterCustomer.trim().toLowerCase()) ||
+       (transaction.type === 'cash_withdrawal' && filterCustomer.trim() === '')) : true;
+
+    // Date filter
+    const withinDateRange = (() => {
+      if (!transaction.transaction_date) return false;
+      
+      try {
+        const validStart = dayjs(dateRange.startDate).startOf('day');
+        const validEnd = dayjs(dateRange.endDate).endOf('day');
+        
+        const iso = transaction.transaction_date.includes(' ') ? 
+          transaction.transaction_date.replace(' ', 'T') : transaction.transaction_date;
+        const parsed = dayjs(iso);
+        
+        return parsed.isValid() && parsed.isBetween(validStart, validEnd, null, '[]');
+      } catch (err) {
+        console.warn('Date parsing error:', transaction.transaction_date);
+        return false;
+      }
+    })();
+
+    return matchesStatus && matchesCustomer && withinDateRange;
+  });
+};
+
+// Add this to your SalesReports.jsx component
+
   useEffect(() => {
     loadSales();
     loadAnalytics();
@@ -490,204 +588,267 @@ const SalesReports = () => {
         }}
       />
 
-      {/* Detailed Transaction Log */}
-      {salesDetails.length > 0 && (
-        <div style={{
-          backgroundColor: 'white',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          padding: '20px',
-          marginTop: '30px',
-          marginBottom: '30px'
-        }}>
-          <h3>🧾 All Transactions</h3>
-          {salesDetails.length === 0 ? (
-            <p>No transactions found.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🕒 Date</th>
-                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🆔 ID</th>
-                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🛒 Items</th>
-                    <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>💰 Total</th>
-                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>💳 Payment</th>
-                    <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>📊 Status</th>
-                    <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>⚡ Actions</th>
-                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📝 Remarks</th>
-                    <th style={{ padding: '10px', border: '1px solid #dee2e6' }}>👤 Customer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSales.map(sale => (
-                    <tr key={sale.id} style={{
-                      backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
-                    }}>
-                      {/* Date Column*/}
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                        {(() => {
-                          try {
-                            const raw = sale.created_at;
-                            if (!raw || typeof raw !== 'string') return '—';
-                            const iso = raw.replace(' ', 'T');
-                            return dayjs(iso).format('MMM D, YYYY h:mm A');
-                          } catch {
-                            return 'Invalid date';
-                          }
-                        })()}
-                      {/* ID Column*/}
-                      </td>
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                        #{sale.id}
-                        {sale.status === 'cancelled' && (
-                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                            Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
-                          </div>
-                        )}
-                      </td>
-                      {/* Items Column*/}
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                        <div>
-                          {sale.items.map((item, index) => (
-                            <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
-                              {item.name} × {item.quantity} @ ₱{item.price.toFixed(2)}
-                            </div>
-                          ))}
+// Replace the existing transaction table section with this enhanced version:
+
+{/* Enhanced Transaction Log with Cash Withdrawals */}
+{(salesDetails.length > 0 || cashTransactions.length > 0) && (
+  <div style={{
+    backgroundColor: 'white',
+    border: '1px solid #dee2e6',
+    borderRadius: '8px',
+    padding: '20px',
+    marginTop: '30px',
+    marginBottom: '30px'
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+      <h3>🧾 All Transactions</h3>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <input
+            type="checkbox"
+            checked={showAllTransactions}
+            onChange={(e) => setShowAllTransactions(e.target.checked)}
+          />
+          Include cash withdrawals
+        </label>
+      </div>
+    </div>
+    
+    {getFilteredCombinedTransactions().length === 0 ? (
+      <p>No transactions found.</p>
+    ) : (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa' }}>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🕒 Date</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📋 Type</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🆔 ID</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📄 Description</th>
+              <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>💰 Amount</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>💳 Payment</th>
+              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>📊 Status</th>
+              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>⚡ Actions</th>
+              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📝 Remarks</th>
+              <th style={{ padding: '10px', border: '1px solid #dee2e6' }}>👤 Customer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {getFilteredCombinedTransactions()
+              .filter(transaction => showAllTransactions || transaction.type === 'sale')
+              .map(transaction => (
+              <tr key={`${transaction.type}_${transaction.id}`} style={{
+                backgroundColor: 
+                  transaction.status === 'cancelled' ? '#f8d7da' : 
+                  transaction.type === 'cash_withdrawal' ? '#e8f4f8' : 'white'
+              }}>
+                {/* Date Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  {(() => {
+                    try {
+                      const raw = transaction.transaction_date;
+                      if (!raw || typeof raw !== 'string') return '—';
+                      const iso = raw.replace(' ', 'T');
+                      return dayjs(iso).format('MMM D, YYYY h:mm A');
+                    } catch {
+                      return 'Invalid date';
+                    }
+                  })()}
+                </td>
+
+                {/* Type Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    backgroundColor: transaction.type === 'sale' ? '#e7f3ff' : '#fff3e0',
+                    color: transaction.type === 'sale' ? '#0066cc' : '#e65100'
+                  }}>
+                    {transaction.type === 'sale' ? '🛒 SALE' : '💸 WITHDRAWAL'}
+                  </span>
+                </td>
+
+                {/* ID Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  #{transaction.id}
+                  {transaction.status === 'cancelled' && transaction.cancelled_at && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                      Cancelled: {formatDate(transaction.cancelled_at)}
+                    </div>
+                  )}
+                </td>
+
+                {/* Description Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  {transaction.type === 'sale' ? (
+                    <div>
+                      {transaction.items?.map((item, index) => (
+                        <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
+                          {item.name} × {item.quantity} @ ₱{item.price.toFixed(2)}
                         </div>
-                        {sale.cancellation_reason && (
-                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
-                            Reason: {sale.cancellation_reason}
-                          </div>
-                        )}
-                      </td>
-                      {/* 3 Total Column*/}
-                      <td style={{ 
-                        padding: '10px', 
-                        textAlign: 'right', 
-                        border: '1px solid #dee2e6',
-                        fontWeight: 'bold',
-                        textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
-                        color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
-                      }}>
-                        ₱{sale.total.toFixed(2)}
-                        {sale.status === 'cancelled' && (
-                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                            REFUNDED
-                          </div>
-                        )}
-                      </td>
-                      {/* 4 Payment Method Column*/}
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                        <span style={{
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          backgroundColor: 
-                            sale.paymentMethod === 'cash' ? '#05dcf8ff' :
-                            sale.paymentMethod === 'credit' ? '#f1b91dff' :
-                            sale.paymentMethod === 'gcash' ? '#70a6f7ff' :
-                            sale.paymentMethod === 'paymaya' ? '#29d437ff' : '#f8d7da',
-                          color:
-                            sale.paymentMethod === 'cash' ? '#edfcf0ff' :
-                            sale.paymentMethod === 'credit' ? '#dae9f8ff' :
-                            sale.paymentMethod === 'gcash' ? '#fdf9eeff' :
-                            sale.paymentMethod === 'paymaya' ? '#faf7eeff' : '#721c24'
-                        }}>
-                          {sale.paymentMethod.toUpperCase()}
-                        </span>
-                      </td>
-                      {/* Status Column*/}
-                      <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-                        <span style={{
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#666' }}>
+                      {transaction.description}
+                    </div>
+                  )}
+                  {transaction.cancellation_reason && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
+                      Reason: {transaction.cancellation_reason}
+                    </div>
+                  )}
+                </td>
+
+                {/* Amount Column */}
+                <td style={{ 
+                  padding: '10px', 
+                  textAlign: 'right', 
+                  border: '1px solid #dee2e6',
+                  fontWeight: 'bold',
+                  textDecoration: transaction.status === 'cancelled' ? 'line-through' : 'none',
+                  color: 
+                    transaction.status === 'cancelled' ? '#dc3545' : 
+                    transaction.type === 'cash_withdrawal' ? '#e65100' : 'inherit'
+                }}>
+                  {transaction.type === 'cash_withdrawal' ? '-' : ''}₱{transaction.amount.toFixed(2)}
+                  {transaction.status === 'cancelled' && (
+                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                      REFUNDED
+                    </div>
+                  )}
+                </td>
+
+                {/* Payment Method Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    backgroundColor: 
+                      transaction.payment_method === 'cash' ? '#05dcf8ff' :
+                      transaction.payment_method === 'credit' ? '#f1b91dff' :
+                      transaction.payment_method === 'gcash' ? '#70a6f7ff' :
+                      transaction.payment_method === 'paymaya' ? '#29d437ff' : '#f8d7da',
+                    color:
+                      transaction.payment_method === 'cash' ? '#edfcf0ff' :
+                      transaction.payment_method === 'credit' ? '#dae9f8ff' :
+                      transaction.payment_method === 'gcash' ? '#fdf9eeff' :
+                      transaction.payment_method === 'paymaya' ? '#faf7eeff' : '#721c24'
+                  }}>
+                    {(transaction.payment_method || 'cash').toUpperCase()}
+                  </span>
+                </td>
+
+                {/* Status Column */}
+                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                  <span style={{
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    backgroundColor: 
+                      transaction.status === 'cancelled' ? '#dc3545' :
+                      transaction.status === 'unpaid' ? '#ffc107' :
+                      transaction.type === 'cash_withdrawal' ? '#e65100' :
+                      transaction.modified_at ? '#17a2b8' : '#28a745',
+                    color: 'white'
+                  }}>
+                    {transaction.status === 'cancelled' ? '❌ CANCELLED' :
+                      transaction.status === 'unpaid' ? '💸 UNPAID' :
+                      transaction.type === 'cash_withdrawal' ? '💸 WITHDRAWN' :
+                      transaction.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
+                  </span>
+                </td>
+
+                {/* Actions Column */}
+                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                  {transaction.type === 'sale' ? (
+                    transaction.status === 'unpaid' ? (
+                      <button
+                        onClick={() => handleMarkAsPaid(transaction)}
+                        style={{
                           padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          backgroundColor: 
-                            sale.status === 'cancelled' ? '#dc3545' :
-                            sale.status === 'unpaid' ? '#ffc107' :
-                            sale.modified_at ? '#17a2b8' : '#28a745',
-                          color: 
-                            sale.status === 'cancelled' ? 'white' :
-                            sale.status === 'unpaid' ? '#000' :
-                            sale.modified_at ? 'white' : 'white'
-                        }}>
-                          {sale.status === 'cancelled' ? '❌ CANCELLED' :
-                            sale.status === 'unpaid' ? '💸 UNPAID' :
-                            sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
-                        </span>
-                      </td>
-                      {/* Actions Column*/}
-                      <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-                        {sale.status === 'unpaid' ? (
-                          <button
-                            onClick={() => handleMarkAsPaid(sale)}
-                            style={{
-                              padding: '4px 8px',
-                              backgroundColor: '#28a745',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px'
-                            }}
-                            title="Mark as Paid"
-                          >
-                            ✅ Mark As Paid
-                          </button>
-                        ) : sale.status !== 'cancelled' ? (
-                          <button
-                            onClick={() => handleCancelSale(sale)}
-                            style={{
-                              padding: '4px 8px',
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px'
-                            }}
-                            title="Cancel Transaction"
-                          >
-                            🗑️ Cancel
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: '12px', color: '#666' }}>
-                            No actions
-                          </span>
-                        )}
-                      </td>
-                      {/* Remarks Column*/}
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                        {sale.status === 'cancelled' && sale.cancellation_reason ? (
-                          <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
-                            Reason: {sale.cancellation_reason}
-                          </span>
-                        ) : sale.status === 'completed' && sale.paid_at ? (
-                          <span style={{ color: '#28a745' }}>
-                            Paid On: {formatDate(sale.paid_at)}
-                          </span>
-                        ) : sale.status === 'unpaid' ? (
-                          <span style={{ color: '#ffc107' }}>
-                            Awaiting payment
-                          </span>
-                        ) : (
-                          <span style={{ color: '#999' }}>No remarks</span>
-                        )}
-                      </td>
-                      {/* Customer Column*/}
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                        {sale.customer_name || <span style={{ color: '#999' }}>—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px'
+                        }}
+                        title="Mark as Paid"
+                      >
+                        ✅ Mark As Paid
+                      </button>
+                    ) : transaction.status !== 'cancelled' ? (
+                      <button
+                        onClick={() => handleCancelSale(transaction)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px'
+                        }}
+                        title="Cancel Transaction"
+                      >
+                        🗑️ Cancel
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#666' }}>
+                        No actions
+                      </span>
+                    )
+                  ) : (
+                    <span style={{ fontSize: '12px', color: '#666' }}>
+                      N/A
+                    </span>
+                  )}
+                </td>
+
+                {/* Remarks Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  {transaction.type === 'cash_withdrawal' ? (
+                    <span style={{ color: '#e65100', fontStyle: 'italic' }}>
+                      Cash withdrawal from inventory
+                    </span>
+                  ) : transaction.status === 'cancelled' && transaction.cancellation_reason ? (
+                    <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
+                      Reason: {transaction.cancellation_reason}
+                    </span>
+                  ) : transaction.status === 'completed' && transaction.paid_at ? (
+                    <span style={{ color: '#28a745' }}>
+                      Paid On: {formatDate(transaction.paid_at)}
+                    </span>
+                  ) : transaction.status === 'unpaid' ? (
+                    <span style={{ color: '#ffc107' }}>
+                      Awaiting payment
+                    </span>
+                  ) : (
+                    <span style={{ color: '#999' }}>No remarks</span>
+                  )}
+                </td>
+
+                {/* Customer Column */}
+                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  {transaction.type === 'cash_withdrawal' ? (
+                    <span style={{ color: '#666', fontStyle: 'italic' }}>System</span>
+                  ) : (
+                    transaction.customer_name || <span style={{ color: '#999' }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+)}
 
       {/* Cancel Transaction Modal */}
       {showCancelModal && (
