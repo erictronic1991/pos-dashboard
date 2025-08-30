@@ -761,7 +761,7 @@ const POSInterface = () => {
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="e.g. Mang Tonyo"
                 style={{
-                  width: '100%',
+                  width: '92%',
                   padding: '8px',
                   marginTop: '5px',
                   border: '1px solid #ccc',
@@ -802,7 +802,7 @@ const POSInterface = () => {
                   placeholder="Enter amount given"
                   autoFocus
                   style={{
-                    width: '100%',
+                    width: '92%',
                     padding: '8px',
                     border: '1px solid #ccc',
                     borderRadius: '6px',
