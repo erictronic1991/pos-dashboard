@@ -25,6 +25,9 @@ const InventoryManager = () => {
   const [cashAction, setCashAction] = useState('add');
   const [showCamera, setShowCamera] = useState(false);
   const [showRestockModal, setShowRestockModal] = useState(null);
+  const [showPullModal, setShowPullModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [quantityToPull, setQuantityToPull] = useState('');
 
   const API_BASE = 'http://localhost:8000';
 
@@ -147,21 +150,26 @@ const InventoryManager = () => {
   };
 
   const loadNearExpirationProducts = async () => {
-    try {
-      console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
-      const response = await axios.get(`${API_BASE}/products/near-expiration`);
-      console.log('DEBUG - Near expiration products response:', response.data);
-      if (Array.isArray(response.data)) {
-        setNearExpirationProducts(response.data);
-      } else {
-        console.error('DEBUG - Invalid near expiration products response: Not an array', response.data);
-      }
-    } catch (error) {
-      console.error('Error loading near expiration products:', error);
-      setMessage('Error loading near expiration products');
+  try {
+    console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
+    const response = await axios.get(`${API_BASE}/products/near-expiration`);
+    console.log('DEBUG - Raw API response for near-expiration:', response.data);
+    if (Array.isArray(response.data)) {
+      setNearExpirationProducts(response.data);
+      console.log('DEBUG - Updated nearExpirationProducts:', response.data);
+    } else {
+      console.error('DEBUG - Invalid near expiration products response: Not an array', response.data);
+      setNearExpirationProducts([]);
+      setMessage('Invalid near-expiration data received from server');
       setMessageType('error');
     }
-  };
+  } catch (error) {
+    console.error('Error loading near expiration products:', error);
+    setMessage('Error loading near expiration products');
+    setMessageType('error');
+    setNearExpirationProducts([]);
+  }
+};
 
   const handleCashUpdate = async () => {
     const amount = parseFloat(cashAmount);
@@ -277,22 +285,80 @@ const InventoryManager = () => {
     }
   };
 
-  const handleExpirationAction = async (productId, expirationDate, action) => {
-    try {
-      await axios.post(`${API_BASE}/products/expiration-notification`, {
-        productId,
-        expirationDate,
-        action
+  const handleExpirationAction = async (productId, expirationDate, action, quantity = null) => {
+  console.log('DEBUG - handleExpirationAction called:', { productId, expirationDate, action, quantityToPull: quantity });
+  console.log('DEBUG - Current nearExpirationProducts:', nearExpirationProducts);
+
+  try {
+    // Optimistic update for 'clear' action
+    if (action === 'clear') {
+      setNearExpirationProducts(prev => {
+        const updated = prev.filter(product => 
+          !(product.id === productId && product.expiration_date === expirationDate)
+        );
+        console.log('DEBUG - After optimistic update, nearExpirationProducts:', updated);
+        return updated;
       });
-      setMessage(action === 'clear' ? 'Expiration notification cleared' : 'Items pulled due to expiration');
-      setMessageType('success');
-      await loadProducts();
-      await loadNearExpirationProducts();
-    } catch (error) {
-      console.error(`Error handling expiration action (${action}):`, error);
-      setMessage(error.response?.data?.error || `Error handling expiration action`);
-      setMessageType('error');
     }
+
+    const payload = { productId, expirationDate, action };
+    if (action === 'pull' && quantity !== null) {
+      payload.quantityToPull = parseInt(quantity);
+    }
+    console.log('DEBUG - Sending payload to API:', payload);
+    const response = await axios.post(`${API_BASE}/products/expiration-notification`, payload);
+    console.log('DEBUG - API response:', response.data);
+
+    setMessage(response.data.message || (action === 'clear' ? 'Expiration notification cleared' : `Pulled ${quantity || 'all'} items from inventory`));
+    setMessageType('success');
+
+    // For 'pull' action, reload products and near-expiration list to reflect quantity changes
+    if (action === 'pull') {
+      await Promise.all([
+        loadProducts(),
+        loadNearExpirationProducts()
+      ]);
+    }
+  } catch (error) {
+    console.error('DEBUG - Error handling expiration action:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    const errorMessage = error.response?.data?.error || `Error handling expiration action: ${error.message}`;
+    setMessage(errorMessage);
+    setMessageType('error');
+    // Revert optimistic update on error for 'clear' action
+    if (action === 'clear') {
+      console.log('DEBUG - Reverting optimistic update due to error');
+      await loadNearExpirationProducts();
+    }
+  } finally {
+    // Only reset modal-related states
+    setShowPullModal(false);
+    setSelectedProduct(null);
+    setQuantityToPull('');
+    // Always reload products to ensure consistency, but avoid reloading nearExpirationProducts for 'clear'
+    await loadProducts();
+    console.log('DEBUG - Final nearExpirationProducts after action:', nearExpirationProducts);
+  }
+};
+
+  const openPullModal = (product) => {
+    setSelectedProduct(product);
+    setQuantityToPull('');
+    setShowPullModal(true);
+  };
+
+  const handlePullSubmit = () => {
+    if (!selectedProduct) return;
+    const quantity = parseInt(quantityToPull);
+    if (isNaN(quantity) || quantity <= 0 || quantity > selectedProduct.quantity) {
+      setMessage(`Please enter a valid quantity (1 to ${selectedProduct.quantity})`);
+      setMessageType('error');
+      return;
+    }
+    handleExpirationAction(selectedProduct.id, selectedProduct.expiration_date, 'pull', quantity);
   };
 
   const validateForm = () => {
@@ -669,7 +735,7 @@ const InventoryManager = () => {
                     color: '#c62828'
                   }}
                 >
-                  {product.name} (Expires: {product.expiration_date})
+                  {product.name} (Expires: {product.expiration_date}) - {product.quantity} units
                 </span>
                 <button
                   onClick={() => handleExpirationAction(product.id, product.expiration_date, 'clear')}
@@ -686,7 +752,7 @@ const InventoryManager = () => {
                   No Action Needed
                 </button>
                 <button
-                  onClick={() => handleExpirationAction(product.id, product.expiration_date, 'pull')}
+                  onClick={() => openPullModal(product)}
                   style={{
                     padding: '5px 10px',
                     backgroundColor: '#dc3545',
@@ -697,10 +763,68 @@ const InventoryManager = () => {
                     fontSize: '12px'
                   }}
                 >
-                  Pulled from Inventory
+                  Pull from Inventory
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pull from Inventory Modal */}
+      {showPullModal && selectedProduct && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '20px',
+            borderRadius: '5px',
+            width: '300px',
+            textAlign: 'center'
+          }}>
+            <h3>Pull Items from Inventory</h3>
+            <p>
+              {selectedProduct.name} (ID: {selectedProduct.id})<br />
+              Current quantity: {selectedProduct.quantity}<br />
+              Expires on: {selectedProduct.expiration_date}
+            </p>
+            <input
+              type="number"
+              min="1"
+              max={selectedProduct.quantity}
+              value={quantityToPull}
+              onChange={(e) => setQuantityToPull(e.target.value)}
+              placeholder="Quantity to pull"
+              style={{ width: '100%', marginBottom: '10px', padding: '5px' }}
+            />
+            <div>
+              <button
+                onClick={handlePullSubmit}
+                style={{ marginRight: '10px', padding: '5px 10px' }}
+              >
+                Submit
+              </button>
+              <button
+                onClick={() => {
+                  setShowPullModal(false);
+                  setSelectedProduct(null);
+                  setQuantityToPull('');
+                }}
+                style={{ padding: '5px 10px' }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
