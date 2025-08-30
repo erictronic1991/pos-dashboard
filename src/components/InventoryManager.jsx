@@ -15,13 +15,17 @@ const InventoryManager = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [inventoryStats, setInventoryStats] = useState({
     totalValue: 0,
-    cashOnHand: 1000,
+    cashOnHand: 1800, // Updated based on your provided data
+    gcashBalance: 0,
+    paymayaBalance: 0,
     totalProducts: 0,
     lowStockCount: 0,
     outOfStockCount: 0
   });
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
+  const [gcashAmount, setGcashAmount] = useState('');
+  const [paymayaAmount, setPaymayaAmount] = useState('');
   const [cashAction, setCashAction] = useState('add');
   const [showCamera, setShowCamera] = useState(false);
   const [showRestockModal, setShowRestockModal] = useState(null);
@@ -101,11 +105,13 @@ const InventoryManager = () => {
       const response = await axios.get(`${API_BASE}/cash/balance`);
       setInventoryStats(prev => ({
         ...prev,
-        cashOnHand: response.data.cashOnHand || 0
+        cashOnHand: response.data.cashOnHand || 0,
+        gcashBalance: response.data.gcashBalance || 0,
+        paymayaBalance: response.data.paymayaBalance || 0
       }));
     } catch (error) {
-      console.error('Error loading cash balance:', error);
-      setMessage('Error loading cash balance');
+      console.error('Error loading cash balances:', error);
+      setMessage('Error loading cash balances');
       setMessageType('error');
     }
   };
@@ -150,54 +156,63 @@ const InventoryManager = () => {
   };
 
   const loadNearExpirationProducts = async () => {
-  try {
-    console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
-    const response = await axios.get(`${API_BASE}/products/near-expiration`);
-    console.log('DEBUG - Raw API response for near-expiration:', response.data);
-    if (Array.isArray(response.data)) {
-      setNearExpirationProducts(response.data);
-      console.log('DEBUG - Updated nearExpirationProducts:', response.data);
-    } else {
-      console.error('DEBUG - Invalid near expiration products response: Not an array', response.data);
-      setNearExpirationProducts([]);
-      setMessage('Invalid near-expiration data received from server');
+    try {
+      console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
+      const response = await axios.get(`${API_BASE}/products/near-expiration`);
+      console.log('DEBUG - Raw API response for near-expiration:', response.data);
+      if (Array.isArray(response.data)) {
+        setNearExpirationProducts(response.data);
+        console.log('DEBUG - Updated nearExpirationProducts:', response.data);
+      } else {
+        console.error('DEBUG - Invalid near expiration products response: Not an array', response.data);
+        setNearExpirationProducts([]);
+        setMessage('Invalid near-expiration data received from server');
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Error loading near expiration products:', error);
+      setMessage('Error loading near expiration products');
       setMessageType('error');
+      setNearExpirationProducts([]);
     }
-  } catch (error) {
-    console.error('Error loading near expiration products:', error);
-    setMessage('Error loading near expiration products');
-    setMessageType('error');
-    setNearExpirationProducts([]);
-  }
-};
+  };
 
   const handleCashUpdate = async () => {
-    const amount = parseFloat(cashAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setMessage('Please enter a valid amount');
+    const cash = parseFloat(cashAmount) || 0;
+    const gcash = parseFloat(gcashAmount) || 0;
+    const paymaya = parseFloat(paymayaAmount) || 0;
+
+    if (cash <= 0 && gcash <= 0 && paymaya <= 0) {
+      setMessage('Please enter a valid amount for at least one payment method');
       setMessageType('error');
       return;
     }
 
     try {
       const response = await axios.post(`${API_BASE}/cash/update`, {
-        amount,
+        cashOnHand: cash,
+        gcashBalance: gcash,
+        paymayaBalance: paymaya,
         transaction_type: cashAction,
-        description: `${cashAction === 'add' ? 'Added' : 'Removed'} cash via Inventory Manager`
+        description: `${cashAction === 'add' ? 'Added' : 'Removed'} funds via Inventory Manager`
       });
 
       setInventoryStats(prev => ({
         ...prev,
-        cashOnHand: response.data.cashOnHand
+        cashOnHand: response.data.cashOnHand,
+        gcashBalance: response.data.gcashBalance,
+        paymayaBalance: response.data.paymayaBalance
       }));
 
-      setMessage(response.data.message || `Cash ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
+      setMessage(response.data.message || `Funds ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
       setMessageType('success');
       setShowCashModal(false);
       setCashAmount('');
+      setGcashAmount('');
+      setPaymayaAmount('');
     } catch (error) {
-      console.error('Error updating cash:', error);
-      setMessage(error.response?.data?.error || 'Error updating cash');
+      console.error('Error updating cash balances:', error);
+      setMessage(error.response?.data?.error || 'Error updating cash balances');
       setMessageType('error');
     }
   };
@@ -286,63 +301,58 @@ const InventoryManager = () => {
   };
 
   const handleExpirationAction = async (productId, expirationDate, action, quantity = null) => {
-  console.log('DEBUG - handleExpirationAction called:', { productId, expirationDate, action, quantityToPull: quantity });
-  console.log('DEBUG - Current nearExpirationProducts:', nearExpirationProducts);
+    console.log('DEBUG - handleExpirationAction called:', { productId, expirationDate, action, quantityToPull: quantity });
+    console.log('DEBUG - Current nearExpirationProducts:', nearExpirationProducts);
 
-  try {
-    // Optimistic update for 'clear' action
-    if (action === 'clear') {
-      setNearExpirationProducts(prev => {
-        const updated = prev.filter(product => 
-          !(product.id === productId && product.expiration_date === expirationDate)
-        );
-        console.log('DEBUG - After optimistic update, nearExpirationProducts:', updated);
-        return updated;
+    try {
+      if (action === 'clear') {
+        setNearExpirationProducts(prev => {
+          const updated = prev.filter(product => 
+            !(product.id === productId && product.expiration_date === expirationDate)
+          );
+          console.log('DEBUG - After optimistic update, nearExpirationProducts:', updated);
+          return updated;
+        });
+      }
+
+      const payload = { productId, expirationDate, action };
+      if (action === 'pull' && quantity !== null) {
+        payload.quantityToPull = parseInt(quantity);
+      }
+      console.log('DEBUG - Sending payload to API:', payload);
+      const response = await axios.post(`${API_BASE}/products/expiration-notification`, payload);
+      console.log('DEBUG - API response:', response.data);
+
+      setMessage(response.data.message || (action === 'clear' ? 'Expiration notification cleared' : `Pulled ${quantity || 'all'} items from inventory`));
+      setMessageType('success');
+
+      if (action === 'pull') {
+        await Promise.all([
+          loadProducts(),
+          loadNearExpirationProducts()
+        ]);
+      }
+    } catch (error) {
+      console.error('DEBUG - Error handling expiration action:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
       });
+      const errorMessage = error.response?.data?.error || `Error handling expiration action: ${error.message}`;
+      setMessage(errorMessage);
+      setMessageType('error');
+      if (action === 'clear') {
+        console.log('DEBUG - Reverting optimistic update due to error');
+        await loadNearExpirationProducts();
+      }
+    } finally {
+      setShowPullModal(false);
+      setSelectedProduct(null);
+      setQuantityToPull('');
+      await loadProducts();
+      console.log('DEBUG - Final nearExpirationProducts after action:', nearExpirationProducts);
     }
-
-    const payload = { productId, expirationDate, action };
-    if (action === 'pull' && quantity !== null) {
-      payload.quantityToPull = parseInt(quantity);
-    }
-    console.log('DEBUG - Sending payload to API:', payload);
-    const response = await axios.post(`${API_BASE}/products/expiration-notification`, payload);
-    console.log('DEBUG - API response:', response.data);
-
-    setMessage(response.data.message || (action === 'clear' ? 'Expiration notification cleared' : `Pulled ${quantity || 'all'} items from inventory`));
-    setMessageType('success');
-
-    // For 'pull' action, reload products and near-expiration list to reflect quantity changes
-    if (action === 'pull') {
-      await Promise.all([
-        loadProducts(),
-        loadNearExpirationProducts()
-      ]);
-    }
-  } catch (error) {
-    console.error('DEBUG - Error handling expiration action:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-    const errorMessage = error.response?.data?.error || `Error handling expiration action: ${error.message}`;
-    setMessage(errorMessage);
-    setMessageType('error');
-    // Revert optimistic update on error for 'clear' action
-    if (action === 'clear') {
-      console.log('DEBUG - Reverting optimistic update due to error');
-      await loadNearExpirationProducts();
-    }
-  } finally {
-    // Only reset modal-related states
-    setShowPullModal(false);
-    setSelectedProduct(null);
-    setQuantityToPull('');
-    // Always reload products to ensure consistency, but avoid reloading nearExpirationProducts for 'clear'
-    await loadProducts();
-    console.log('DEBUG - Final nearExpirationProducts after action:', nearExpirationProducts);
-  }
-};
+  };
 
   const openPullModal = (product) => {
     setSelectedProduct(product);
@@ -614,7 +624,7 @@ const InventoryManager = () => {
         marginBottom: '30px'
       }}>
         <div style={{
-          backgroundColor: '#28a745',
+          backgroundColor: '#5218fa',
           color: 'white',
           padding: '20px',
           borderRadius: '8px',
@@ -631,7 +641,7 @@ const InventoryManager = () => {
         </div>
         
         <div style={{
-          backgroundColor: '#007bff',
+          backgroundColor: '#ffa500',
           color: 'white',
           padding: '20px',
           borderRadius: '8px',
@@ -668,6 +678,60 @@ const InventoryManager = () => {
           </div>
           <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '5px' }}>
             Available for sales & change
+          </div>
+          <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '8px', fontStyle: 'italic' }}>
+            Click to manage cash
+          </div>
+        </div>
+
+        <div 
+          style={{
+            backgroundColor: '#007bff',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onClick={() => setShowCashModal(true)}
+          onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
+          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+        >
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>📱 Gcash Balance</h3>
+          <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
+            ₱{inventoryStats.gcashBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '5px' }}>
+            Available Gcash funds
+          </div>
+          <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '8px', fontStyle: 'italic' }}>
+            Click to manage cash
+          </div>
+        </div>
+
+        <div 
+          style={{
+            backgroundColor: '#28a745',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onClick={() => setShowCashModal(true)}
+          onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
+          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+        >
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>💸 PayMaya Balance</h3>
+          <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
+            ₱{inventoryStats.paymayaBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '5px' }}>
+            Available PayMaya funds
           </div>
           <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '8px', fontStyle: 'italic' }}>
             Click to manage cash
@@ -1534,12 +1598,28 @@ const InventoryManager = () => {
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             minWidth: '400px'
           }}>
-            <h3 style={{ margin: '0 0 20px 0', textAlign: 'center' }}>💵 Manage Cash on Hand</h3>
+            <h3 style={{ margin: '0 0 20px 0', textAlign: 'center' }}>💵 Manage Payment Methods</h3>
             
             <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Current Cash:</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#17a2b8' }}>
-                ₱{inventoryStats.cashOnHand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Cash:</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#17a2b8' }}>
+                    ₱{inventoryStats.cashOnHand.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Gcash:</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
+                    ₱{inventoryStats.gcashBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>PayMaya:</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#007bff' }}>
+                    ₱{inventoryStats.paymayaBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1553,7 +1633,7 @@ const InventoryManager = () => {
                     checked={cashAction === 'add'}
                     onChange={(e) => setCashAction(e.target.value)}
                   />
-                  <span style={{ color: '#28a745' }}>➕ Add Cash</span>
+                  <span style={{ color: '#28a745' }}>➕ Add Funds</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <input
@@ -1562,28 +1642,66 @@ const InventoryManager = () => {
                     checked={cashAction === 'remove'}
                     onChange={(e) => setCashAction(e.target.value)}
                   />
-                  <span style={{ color: '#dc3545' }}>➖ Remove Cash</span>
+                  <span style={{ color: '#dc3545' }}>➖ Remove Funds</span>
                 </label>
               </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Amount (₱):</label>
-              <input
-                type="number"
-                step="0.01"
-                value={cashAmount}
-                onChange={(e) => setCashAmount(e.target.value)}
-                placeholder="Enter amount"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '16px'
-                }}
-                autoFocus
-              />
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Amounts (₱):</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Cash</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(e.target.value)}
+                    placeholder="Enter cash amount"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Gcash</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={gcashAmount}
+                    onChange={(e) => setGcashAmount(e.target.value)}
+                    placeholder="Enter Gcash amount"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>PayMaya</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={paymayaAmount}
+                    onChange={(e) => setPaymayaAmount(e.target.value)}
+                    placeholder="Enter PayMaya amount"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
             <div style={{ 
@@ -1604,12 +1722,14 @@ const InventoryManager = () => {
                   fontSize: '14px'
                 }}
               >
-                {cashAction === 'add' ? '➕ Add Cash' : '➖ Remove Cash'}
+                {cashAction === 'add' ? '➕ Add Funds' : '➖ Remove Funds'}
               </button>
               <button
                 onClick={() => {
                   setShowCashModal(false);
                   setCashAmount('');
+                  setGcashAmount('');
+                  setPaymayaAmount('');
                 }}
                 style={{
                   padding: '10px 20px',
@@ -1634,8 +1754,8 @@ const InventoryManager = () => {
               color: '#666'
             }}>
               <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>💡 Cash Management Tips:</div>
-              <div>• Add cash when receiving payments from customers</div>
-              <div>• Remove cash when making change or bank deposits</div>
+              <div>• Add funds when receiving payments from customers</div>
+              <div>• Remove funds when making change or bank deposits</div>
               <div>• Keep track for accurate daily reconciliation</div>
             </div>
           </div>

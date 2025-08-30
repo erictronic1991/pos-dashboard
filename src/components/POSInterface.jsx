@@ -174,96 +174,82 @@ const POSInterface = () => {
     );
   };
 
-  //const processSale = async () => {
-  //  if (cart.length === 0) {
-  //    setMessage('Cart is empty');
-  //    return;
-  //  }
-   // setIsProcessing(true);
-  //  try {
-  //    const saleData = {
-   //     items: cart.map(item => ({
-   //       id: item.id,
-   //       name: item.name,
-   //       price: item.price,
-   //       quantity: item.quantity
-    //    })),
-   //     total: total,
-    //    paymentMethod: paymentMethod,
-    //    customer_name: customerName || 'cash'
-   //   };
-  //    const response = await axios.post(`${API_BASE}/sales`, saleData);
-  //    if (response.data.success) {
-  //      setMessage(`Sale completed! Transaction ID: ${response.data.saleId}`);
-   //     setCart([]);
-   //     setCurrentProduct(null);
-   //     loadProducts();
-   //   }
-  //  } catch (error) {
-  //    console.error('Error processing sale:', error);
-  //    setMessage('Error processing sale');
-   // } finally {
-   //   setIsProcessing(false);
-//    }
-//  };
   const processSale = async () => {
-    if (cart.length === 0) {
-      setMessage('Cart is empty');
-      return;
-    }
-    if (paymentMethod === 'cash' && (isNaN(paymentAmount) || parseFloat(paymentAmount) < total)) {
-      setMessage('Payment amount must be at least the total amount due');
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const saleData = {
-        items: cart.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity
-        })),
-        total: total,
-        paymentMethod: paymentMethod,
-        customer_name: customerName || 'cash'
-      };
-      const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
-      if (saleResponse.data.success) {
+  if (cart.length === 0) {
+    setMessage('Cart is empty');
+    return;
+  }
+  if (paymentMethod === 'cash' && (isNaN(paymentAmount) || parseFloat(paymentAmount) < total)) {
+    setMessage('Payment amount must be at least the total amount due');
+    return;
+  }
+  setIsProcessing(true);
+  try {
+    const saleData = {
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity
+      })),
+      total: total,
+      paymentMethod: paymentMethod,
+      customer_name: customerName || paymentMethod
+    };
+    const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
+    if (saleResponse.data.success) {
+      let updateSuccess = true;
+      let updateMessage = `Sale completed! Transaction ID: ${saleResponse.data.saleId}`;
+
+      if (['cash', 'gcash', 'paymaya'].includes(paymentMethod)) {
+        const updateData = {
+          transaction_type: 'add',
+          description: `${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} sale (Transaction ID: ${saleResponse.data.saleId})`,
+          reference_id: saleResponse.data.saleId
+        };
+        // Map payment method to the expected field
         if (paymentMethod === 'cash') {
-          const cashRegisterData = {
-            amount: total,
-            transaction_type: 'add',
-            description: `Cash sale (Transaction ID: ${saleResponse.data.saleId})`
-          };
-          try {
-            const cashResponse = await axios.post(`${API_BASE}/cash/update`, cashRegisterData);
-            if (cashResponse.data.message === 'Cash updated successfully') {
-              setMessage(`Sale completed! Transaction ID: ${saleResponse.data.saleId}. Cash register updated.`);
-            } else {
-              setMessage(`Sale completed, but cash register update failed.`);
-            }
-          } catch (cashError) {
-            console.error('Error updating cash register:', cashError);
-            setMessage(`Sale completed, but error updating cash register: ${cashError.message}`);
-          }
-        } else {
-          setMessage(`Sale completed! Transaction ID: ${saleResponse.data.saleId}`);
+          updateData.cashOnHand = total;
+        } else if (paymentMethod === 'gcash') {
+          updateData.gcashBalance = total;
+        } else if (paymentMethod === 'paymaya') {
+          updateData.paymayaBalance = total;
         }
-        setCart([]);
-        setCurrentProduct(null);
-        setPaymentAmount('');
-        setChangeAmount(0);
-        setCustomerName('');
-        loadProducts();
+
+        try {
+          // In your processSale function, change this line:
+          const updateResponse = await axios.post(`${API_BASE}/cash/update`, updateData);
+          // Instead of: `${API_BASE}/cash-register/update`
+          if (updateResponse.data.message !== 'Cash balances updated successfully') {
+            updateSuccess = false;
+            updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register update failed.`;
+          }
+        } catch (updateError) {
+          console.error(`Error updating ${paymentMethod} register:`, updateError);
+          updateSuccess = false;
+          updateMessage += `. Error updating ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register: ${updateError.message}`;
+        }
       }
-    } catch (error) {
-      console.error('Error processing sale:', error);
-      setMessage('Error processing sale');
-    } finally {
-      setIsProcessing(false);
+
+      if (updateSuccess && paymentMethod !== 'credit') {
+        updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register updated.`;
+      }
+
+      setMessage(updateMessage);
+      setCart([]);
+      setCurrentProduct(null);
+      setPaymentAmount('');
+      setChangeAmount(0);
+      setCustomerName('');
+      loadProducts();
     }
-  };
+  } catch (error) {
+    console.error('Error processing sale:', error);
+    setMessage('Error processing sale');
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const clearCart = () => {
     setCart([]);
