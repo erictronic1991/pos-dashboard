@@ -219,7 +219,7 @@ const POSInterface = () => {
         try {
           // In your processSale function, change this line:
           const updateResponse = await axios.post(`${API_BASE}/cash/update`, updateData);
-          // Instead of: `${API_BASE}/cash-register/update`
+        // Instead of: `${API_BASE}/cash-register/update`
           if (updateResponse.data.message !== 'Cash balances updated successfully') {
             updateSuccess = false;
             updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register update failed.`;
@@ -420,13 +420,13 @@ const POSInterface = () => {
         }
 
         .payment-button.cash {
-          background-color: #e2f0d9;
+          background-color: #e6fcffff;
           border-color: #c3e6cb;
           color: #155724;
         }
 
         .payment-button.cash.active {
-          background-color: #c3e6cb;
+          background-color: #60e4f8ff;
           border-color: #a3d6a9;
           color: #155724;
         }

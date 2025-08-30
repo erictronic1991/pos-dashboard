@@ -524,7 +524,8 @@ const SalesReports = () => {
                     <tr key={sale.id} style={{
                       backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
                     }}>
-                      <td>
+                      {/* Date Column*/}
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
                         {(() => {
                           try {
                             const raw = sale.created_at;
@@ -535,8 +536,9 @@ const SalesReports = () => {
                             return 'Invalid date';
                           }
                         })()}
+                      {/* ID Column*/}
                       </td>
-                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
                         #{sale.id}
                         {sale.status === 'cancelled' && (
                           <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
@@ -544,6 +546,7 @@ const SalesReports = () => {
                           </div>
                         )}
                       </td>
+                      {/* Items Column*/}
                       <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                         <div>
                           {sale.items.map((item, index) => (
@@ -558,6 +561,7 @@ const SalesReports = () => {
                           </div>
                         )}
                       </td>
+                      {/* 3 Total Column*/}
                       <td style={{ 
                         padding: '10px', 
                         textAlign: 'right', 
@@ -573,23 +577,27 @@ const SalesReports = () => {
                           </div>
                         )}
                       </td>
+                      {/* 4 Payment Method Column*/}
                       <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                         <span style={{
                           padding: '2px 8px',
                           borderRadius: '12px',
                           fontSize: '12px',
                           backgroundColor: 
-                            sale.paymentMethod === 'cash' ? '#d4edda' :
-                            sale.paymentMethod === 'credit' ? '#cce5ff' :
-                            sale.paymentMethod === 'gcash' ? '#fff3cd' : '#f8d7da',
+                            sale.paymentMethod === 'cash' ? '#05dcf8ff' :
+                            sale.paymentMethod === 'credit' ? '#f1b91dff' :
+                            sale.paymentMethod === 'gcash' ? '#70a6f7ff' :
+                            sale.paymentMethod === 'paymaya' ? '#29d437ff' : '#f8d7da',
                           color:
-                            sale.paymentMethod === 'cash' ? '#155724' :
-                            sale.paymentMethod === 'credit' ? '#004085' :
-                            sale.paymentMethod === 'gcash' ? '#856404' : '#721c24'
+                            sale.paymentMethod === 'cash' ? '#edfcf0ff' :
+                            sale.paymentMethod === 'credit' ? '#dae9f8ff' :
+                            sale.paymentMethod === 'gcash' ? '#fdf9eeff' :
+                            sale.paymentMethod === 'paymaya' ? '#faf7eeff' : '#721c24'
                         }}>
                           {sale.paymentMethod.toUpperCase()}
                         </span>
                       </td>
+                      {/* Status Column*/}
                       <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
                         <span style={{
                           padding: '4px 8px',
@@ -610,6 +618,7 @@ const SalesReports = () => {
                             sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
                         </span>
                       </td>
+                      {/* Actions Column*/}
                       <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
                         {sale.status === 'unpaid' ? (
                           <button
@@ -649,6 +658,7 @@ const SalesReports = () => {
                           </span>
                         )}
                       </td>
+                      {/* Remarks Column*/}
                       <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
                         {sale.status === 'cancelled' && sale.cancellation_reason ? (
                           <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
@@ -666,6 +676,7 @@ const SalesReports = () => {
                           <span style={{ color: '#999' }}>No remarks</span>
                         )}
                       </td>
+                      {/* Customer Column*/}
                       <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
                         {sale.customer_name || <span style={{ color: '#999' }}>—</span>}
                       </td>
