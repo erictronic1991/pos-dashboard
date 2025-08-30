@@ -14,9 +14,6 @@ dayjs.extend(isBetween);
 
 const today = dayjs().format('YYYY-MM-DD'); 
 
-
-
-
 const SalesReports = () => {
   const [sales, setSales] = useState([]);
   const [analytics, setAnalytics] = useState([]);
@@ -37,17 +34,13 @@ const SalesReports = () => {
   const [salesDetails, setSalesDetails] = useState([]);
   const [filterUnpaidOnly, setFilterUnpaidOnly] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState('');
-  //const [startDate, setStartDate] = useState('');
-  //const [endDate, setEndDate] = useState('');
   const today = new Date();
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(today.getDate() - 7);
 
-
   const [startDate, setStartDate] = useState(sevenDaysAgo.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
   
-
   const API_BASE = 'http://localhost:8000';
 
   useEffect(() => {
@@ -67,62 +60,43 @@ const SalesReports = () => {
   }, [dateRange]);
 
   useEffect(() => {
-  axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
-    .then(res => {
-      const analyticsData = Array.isArray(res.data) ? res.data : [];
-      setAnalytics(analyticsData);
+    axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
+      .then(res => {
+        const analyticsData = Array.isArray(res.data) ? res.data : [];
+        setAnalytics(analyticsData);
 
-      // ✅ Calculate totals from analytics
-      const total = analyticsData.reduce((sum, day) => sum + day.daily_total, 0);
-      const transactions = analyticsData.reduce((sum, day) => sum + day.transaction_count, 0);
+        const total = analyticsData.reduce((sum, day) => sum + day.daily_total, 0);
+        const transactions = analyticsData.reduce((sum, day) => sum + day.transaction_count, 0);
 
-      setTotalSales(total);
-      setTotalTransactions(transactions);
-    })
-    .catch(err => console.error('Error loading analytics:', err));
+        setTotalSales(total);
+        setTotalTransactions(transactions);
+      })
+      .catch(err => console.error('Error loading analytics:', err));
   }, [selectedPeriod]);
-
-  
-  //useEffect(() => {
-  //const today = new Date();
-  //const pastDate = new Date();
-  //pastDate.setDate(today.getDate() - parseInt(selectedPeriod));
-
-  //setDateRange({
-  //  startDate: pastDate.toISOString().split('T')[0],
-  //  endDate: today.toISOString().split('T')[0]
-  //});
-  //}, [selectedPeriod]);
 
   useEffect(() => {
-  const today = dayjs().format('YYYY-MM-DD');
+    const today = dayjs().format('YYYY-MM-DD');
 
-  if (selectedPeriod === 'today') {
-    setDateRange({ startDate: today, endDate: today });
-  } else {
-    const start = dayjs().subtract(Number(selectedPeriod) - 1, 'day').format('YYYY-MM-DD');
-    setDateRange({ startDate: start, endDate: today });
-  }
+    if (selectedPeriod === 'today') {
+      setDateRange({ startDate: today, endDate: today });
+    } else {
+      const start = dayjs().subtract(Number(selectedPeriod) - 1, 'day').format('YYYY-MM-DD');
+      setDateRange({ startDate: start, endDate: today });
+    }
   }, [selectedPeriod]);
 
-
-
   const handleMarkAsPaid = (sale) => {
-  axios.put(`${API_BASE}/sales/${sale.id}/mark-paid`)
-    .then(() => {
-      // ✅ Refresh the transaction list
-      axios.get(`${API_BASE}/sales/details`, {
-        params: {
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate
-        }
-      }).then(res => setSalesDetails(res.data));
-    })
-    .catch(err => console.error('Error marking sale as paid:', err));
-};
-
-
-
+    axios.put(`${API_BASE}/sales/${sale.id}/mark-paid`)
+      .then(() => {
+        axios.get(`${API_BASE}/sales/details`, {
+          params: {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate
+          }
+        }).then(res => setSalesDetails(res.data));
+      })
+      .catch(err => console.error('Error marking sale as paid:', err));
+  };
 
   const loadSales = async () => {
     try {
@@ -138,18 +112,15 @@ const SalesReports = () => {
       const response = await axios.get(`${API_BASE}/sales?${params.toString()}`);
       console.log('Sales response:', response.data);
       
-      // Ensure response.data is an array
       const salesData = Array.isArray(response.data) ? response.data : [];
       setSales(salesData);
       
-      // Calculate totals
       const total = salesData.reduce((sum, sale) => sum + (sale.total || 0), 0);
       setTotalSales(total);
       setTotalTransactions(salesData.length);
     } catch (error) {
       console.error('Error loading sales:', error);
       
-      // More detailed error handling
       let errorMessage = 'Failed to load sales data';
       if (error.code === 'ERR_NETWORK') {
         errorMessage = 'Cannot connect to backend server. Please ensure the backend is running on port 8000.';
@@ -177,7 +148,6 @@ const SalesReports = () => {
       const response = await axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`);
       console.log('Analytics response:', response.data);
       
-      // Ensure response.data is an array
       const analyticsData = Array.isArray(response.data) ? response.data : [];
       setAnalytics(analyticsData);
     } catch (error) {
@@ -204,18 +174,17 @@ const SalesReports = () => {
   };
 
   const thStyle = {
-  padding: '12px',
-  border: '1px solid #dee2e6',
-  textAlign: 'left',
-  backgroundColor: '#f8f9fa'
+    padding: '12px',
+    border: '1px solid #dee2e6',
+    textAlign: 'left',
+    backgroundColor: '#f8f9fa'
   };
 
   const tdStyle = {
-  padding: '12px',
-  border: '1px solid #dee2e6',
-  verticalAlign: 'top'
+    padding: '12px',
+    border: '1px solid #dee2e6',
+    verticalAlign: 'top'
   };
-
 
   const exportToCSV = () => {
     const headers = ['Date', 'Transaction ID', 'Items', 'Total', 'Payment Method', 'Status'];
@@ -259,11 +228,36 @@ const SalesReports = () => {
       });
 
       if (response.data.success) {
-        setMessage(`Transaction #${selectedSale.id} cancelled successfully. Refund amount: ${formatCurrency(response.data.refundAmount)}`);
+        let cashMessage = '';
+        if (selectedSale.paymentMethod === 'cash') {
+          try {
+            const cashRegisterData = {
+              amount: selectedSale.total,
+              transaction_type: 'remove',
+              description: `Refund for canceled sale (Transaction ID: ${selectedSale.id}, Reason: ${cancelReason})`
+            };
+            const cashResponse = await axios.post(`${API_BASE}/cash/update`, cashRegisterData);
+            if (cashResponse.data.message === 'Cash updated successfully') {
+              cashMessage = ' Cash register updated.';
+            } else {
+              cashMessage = ' Cash register update failed.';
+            }
+          } catch (cashError) {
+            console.error('Error updating cash register:', cashError);
+            cashMessage = ` Error updating cash register: ${cashError.message}.`;
+          }
+        }
+        setMessage(`Transaction #${selectedSale.id} cancelled successfully. Refund amount: ${formatCurrency(response.data.refundAmount)}${cashMessage}`);
         setMessageType('success');
         
         // Refresh sales data
         loadSales();
+        axios.get(`${API_BASE}/sales/details`, {
+          params: {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate
+          }
+        }).then(res => setSalesDetails(res.data));
         
         // Close modal and reset
         setShowCancelModal(false);
@@ -283,14 +277,10 @@ const SalesReports = () => {
     setCancelReason('');
   };
 
-  // Show loading state
   if (loading) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <h2>Sales Reports</h2>
-
-
-        
         <div style={{ 
           padding: '40px', 
           fontSize: '18px', 
@@ -303,25 +293,19 @@ const SalesReports = () => {
   }
 
   const filteredSales = salesDetails.filter(sale => {
-  const matchesStatus = filterUnpaidOnly ? sale.status === 'unpaid' : true;
-  const matchesCustomer = filterCustomer.trim()
-    ? sale.customer_name.toLowerCase().includes(filterCustomer.trim().toLowerCase())
-    : true;
-  return matchesStatus && matchesCustomer;
+    const matchesStatus = filterUnpaidOnly ? sale.status === 'unpaid' : true;
+    const matchesCustomer = filterCustomer.trim()
+      ? sale.customer_name.toLowerCase().includes(filterCustomer.trim().toLowerCase())
+      : true;
+    return matchesStatus && matchesCustomer;
   });
 
   console.log('Raw salesDetails:', salesDetails);
-
-  //const validStart = dayjs(startDate).startOf('day'); // 00:00 AM
-  //const validEnd = dayjs(endDate).endOf('day');       // 11:59 PM
-  //const formattedStart = validStart.format('MMM D, YYYY hh:mm A');
-  //const formattedEnd = validEnd.format('MMM D, YYYY hh:mm A');
 
   const validStart = dayjs(dateRange.startDate).startOf('day');
   const validEnd = dayjs(dateRange.endDate).endOf('day');
   const formattedStart = validStart.format('MMM D, YYYY hh:mm A');
   const formattedEnd = validEnd.format('MMM D, YYYY hh:mm A');
-
 
   let unpaidSummary = [];
   try {
@@ -346,24 +330,20 @@ const SalesReports = () => {
       })();
 
       return isUnpaid && matchesCustomer && withinDateRange;
-      });
-    } catch (err) {
-      console.error('Error filtering unpaidSummary:', err);
-    }
+    });
+  } catch (err) {
+    console.error('Error filtering unpaidSummary:', err);
+  }
 
-    console.log('Raw salesDetails:', salesDetails);
-    console.log('filterCustomer:', filterCustomer);
-    console.log('unpaidSummary:', unpaidSummary);
-    console.log('startDate:', startDate);
-    console.log('endDate:', endDate);
+  console.log('Raw salesDetails:', salesDetails);
+  console.log('filterCustomer:', filterCustomer);
+  console.log('unpaidSummary:', unpaidSummary);
+  console.log('startDate:', startDate);
+  console.log('endDate:', endDate);
 
+  const totalOwed = unpaidSummary.reduce((sum, sale) => sum + sale.total, 0);
 
-    const totalOwed = unpaidSummary.reduce((sum, sale) => sum + sale.total, 0);
-
-    console.log('Unpaid summary count:', unpaidSummary.length);
-
-
-  
+  console.log('Unpaid summary count:', unpaidSummary.length);
 
   return (
     <div style={{ padding: '20px' }}>
@@ -437,7 +417,7 @@ const SalesReports = () => {
               borderRadius: '4px'
             }}
           >
-            <option value="today">Today</option> {/* ✅ New default */}
+            <option value="today">Today</option>
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
@@ -461,247 +441,241 @@ const SalesReports = () => {
 
       {/* Date Validation */}
       {(!startDate || !endDate) && (
-      <div style={{ color: '#999', fontSize: '12px', marginBottom: '10px' }}>
-      Please select a valid date range to view summary.
-      </div>
+        <div style={{ color: '#999', fontSize: '12px', marginBottom: '10px' }}>
+          Please select a valid date range to view summary.
+        </div>
       )}
 
       {/* Summary Row */}
       {filterCustomer.trim() && unpaidSummary.length > 0 && (
         <div style={{
           backgroundColor: '#fff3cd',
-            border: '1px solid #ffeaa7',
-            borderRadius: '4px',
-            padding: '15px',
-            marginBottom: '20px',
-            fontSize: '20px',
-            color: '#856404',
-            fontFamily: 'monospace',
-            borderBottom: '1px dashed #ccc'
-          }}>
+          border: '1px solid #ffeaa7',
+          borderRadius: '4px',
+          padding: '15px',
+          marginBottom: '20px',
+          fontSize: '20px',
+          color: '#856404',
+          fontFamily: 'monospace',
+          borderBottom: '1px dashed #ccc'
+        }}>
           <strong>Summary:</strong> Si {filterCustomer.trim()} ay may utang na <strong>₱{totalOwed.toFixed(2)}</strong> from <strong>{formattedStart}</strong> to <strong>{formattedEnd}</strong>.
-          </div>
+        </div>
       )}
 
       {/* Filter Controls */}
-        <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={filterUnpaidOnly}
-              onChange={(e) => setFilterUnpaidOnly(e.target.checked)}
-            />
-            {' '}Show only unpaid transactions
-          </label>
-        </div >
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={filterUnpaidOnly}
+            onChange={(e) => setFilterUnpaidOnly(e.target.checked)}
+          />
+          {' '}Show only unpaid transactions
+        </label>
+      </div >
 
       {/* Creditor Filter */}
-        <input
-          type="text"
-          value={filterCustomer}
-          onChange={(e) => setFilterCustomer(e.target.value)}
-          placeholder="Filter by customer name"
-          style={{
+      <input
+        type="text"
+        value={filterCustomer}
+        onChange={(e) => setFilterCustomer(e.target.value)}
+        placeholder="Filter by customer name"
+        style={{
           padding: '8px',
           border: '1px solid #ccc',
           borderRadius: '4px',
           fontSize: '14px',
           width: '250px'
-          }}
-          />
+        }}
+      />
 
       {/* Detailed Transaction Log */}
       {salesDetails.length > 0 && (
-  <div style={{
-    backgroundColor: 'white',
-    border: '1px solid #dee2e6',
-    borderRadius: '8px',
-    padding: '20px',
-    marginTop: '30px',
-    marginBottom: '30px'
-  }}>
-    
-    <h3>🧾 All Transactions</h3>
-    {salesDetails.length === 0 ? (
-      <p>No transactions found.</p>
-    ) : (
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🕒 Date</th>
-              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🆔 ID</th>
-              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🛒 Items</th>
-              <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>💰 Total</th>
-              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>💳 Payment</th>
-              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>📊 Status</th>
-              <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>⚡ Actions</th>
-              <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📝 Remarks</th>
-              <th style={{ padding: '10px', border: '1px solid #dee2e6' }}>👤 Customer</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSales.map(sale => (
-              <tr key={sale.id} style={{
-                backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
-              }}>
-                <td>
-              {(() => {
-              try {
-              const raw = sale.created_at;
-                  if (!raw || typeof raw !== 'string') return '—';
-                    const iso = raw.replace(' ', 'T');
-                      return dayjs(iso).format('MMM D, YYYY h:mm A');
-                  } catch {
-                  return 'Invalid date';
-                  }
-                })()}
-              </td>
-                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                  #{sale.id}
-                  {sale.status === 'cancelled' && (
-                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                      Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                  <div>
-                    {sale.items.map((item, index) => (
-                      <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
-                        {item.name} × {item.quantity} @ ₱{item.price.toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                  {sale.cancellation_reason && (
-                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
-                      Reason: {sale.cancellation_reason}
-                    </div>
-                  )}
-                </td>
-                <td style={{ 
-                  padding: '10px', 
-                  textAlign: 'right', 
-                  border: '1px solid #dee2e6',
-                  fontWeight: 'bold',
-                  textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
-                  color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
-                }}>
-                  ₱{sale.total.toFixed(2)}
-                  {sale.status === 'cancelled' && (
-                    <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
-                      REFUNDED
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    backgroundColor: 
-                      sale.paymentMethod === 'cash' ? '#d4edda' :
-                      sale.paymentMethod === 'credit' ? '#cce5ff' :
-                      sale.paymentMethod === 'gcash' ? '#fff3cd' : '#f8d7da',
-                    color:
-                      sale.paymentMethod === 'cash' ? '#155724' :
-                      sale.paymentMethod === 'credit' ? '#004085' :
-                      sale.paymentMethod === 'gcash' ? '#856404' : '#721c24'
-                  }}>
-                    {sale.paymentMethod.toUpperCase()}
-                  </span>
-                </td>
-                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-                  <span style={{
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    backgroundColor: 
-                    sale.status === 'cancelled' ? '#dc3545' :
-                    sale.status === 'unpaid' ? '#ffc107' :
-                    sale.modified_at ? '#17a2b8' : '#28a745',
-                    color: 
-                    sale.status === 'cancelled' ? 'white' :
-                    sale.status === 'unpaid' ? '#000' :
-                    sale.modified_at ? 'white' : 'white'
-                  }}>
-                  {sale.status === 'cancelled' ? '❌ CANCELLED' :
-                    sale.status === 'unpaid' ? '💸 UNPAID' :
-                    sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
-                  </span>
-
-                </td>
-                <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
-
-                  {sale.status === 'unpaid' ? (
-                  <button
-                  onClick={() => handleMarkAsPaid(sale)}
-                  style={{
-                  padding: '4px 8px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px'
-                }}
-                title="Mark as Paid"
-                  >
-                  ✅ Mark As Paid
-                  </button>
-                  ) : sale.status !== 'cancelled' ? (
-                  <button
-                  onClick={() => handleCancelSale(sale)}
-                  style={{
-                  padding: '4px 8px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '11px'
-                }}
-                title="Cancel Transaction"
-                >
-                🗑️ Cancel
-                </button>
-                ) : (
-                <span style={{ fontSize: '12px', color: '#666' }}>
-                No actions
-                </span>
-                )}
-                </td>
-                {/*Column 8: Remarks*/}
-                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                  {sale.status === 'cancelled' && sale.cancellation_reason ? (
-                  <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
-                  Reason: {sale.cancellation_reason}
-                  </span>
-                ) : sale.status === 'completed' && sale.paid_at ? (
-                <span style={{ color: '#28a745' }}>
-                Paid On: {formatDate(sale.paid_at)}
-                </span>
-                ) : sale.status === 'unpaid' ? (
-                <span style={{ color: '#ffc107' }}>
-                Awaiting payment
-                </span>
-                ) : (
-                <span style={{ color: '#999' }}>No remarks</span>
-                )}
-                </td>
-                {/*Column 9: Customers*/}
-                <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
-                {sale.customer_name || <span style={{ color: '#999' }}>—</span>}
-                </td>
-
-              </tr>
-            ))}
-          </tbody>
-          </table>
-          </div>
+        <div style={{
+          backgroundColor: 'white',
+          border: '1px solid #dee2e6',
+          borderRadius: '8px',
+          padding: '20px',
+          marginTop: '30px',
+          marginBottom: '30px'
+        }}>
+          <h3>🧾 All Transactions</h3>
+          {salesDetails.length === 0 ? (
+            <p>No transactions found.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa' }}>
+                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🕒 Date</th>
+                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🆔 ID</th>
+                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>🛒 Items</th>
+                    <th style={{ padding: '10px', textAlign: 'right', border: '1px solid #dee2e6' }}>💰 Total</th>
+                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>💳 Payment</th>
+                    <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>📊 Status</th>
+                    <th style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>⚡ Actions</th>
+                    <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #dee2e6' }}>📝 Remarks</th>
+                    <th style={{ padding: '10px', border: '1px solid #dee2e6' }}>👤 Customer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSales.map(sale => (
+                    <tr key={sale.id} style={{
+                      backgroundColor: sale.status === 'cancelled' ? '#f8d7da' : 'white'
+                    }}>
+                      <td>
+                        {(() => {
+                          try {
+                            const raw = sale.created_at;
+                            if (!raw || typeof raw !== 'string') return '—';
+                            const iso = raw.replace(' ', 'T');
+                            return dayjs(iso).format('MMM D, YYYY h:mm A');
+                          } catch {
+                            return 'Invalid date';
+                          }
+                        })()}
+                      </td>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                        #{sale.id}
+                        {sale.status === 'cancelled' && (
+                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                            Cancelled: {sale.cancelled_at ? formatDate(sale.cancelled_at) : 'N/A'}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                        <div>
+                          {sale.items.map((item, index) => (
+                            <div key={index} style={{ fontSize: '12px', marginBottom: '2px' }}>
+                              {item.name} × {item.quantity} @ ₱{item.price.toFixed(2)}
+                            </div>
+                          ))}
+                        </div>
+                        {sale.cancellation_reason && (
+                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '4px', fontStyle: 'italic' }}>
+                            Reason: {sale.cancellation_reason}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ 
+                        padding: '10px', 
+                        textAlign: 'right', 
+                        border: '1px solid #dee2e6',
+                        fontWeight: 'bold',
+                        textDecoration: sale.status === 'cancelled' ? 'line-through' : 'none',
+                        color: sale.status === 'cancelled' ? '#dc3545' : 'inherit'
+                      }}>
+                        ₱{sale.total.toFixed(2)}
+                        {sale.status === 'cancelled' && (
+                          <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>
+                            REFUNDED
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          backgroundColor: 
+                            sale.paymentMethod === 'cash' ? '#d4edda' :
+                            sale.paymentMethod === 'credit' ? '#cce5ff' :
+                            sale.paymentMethod === 'gcash' ? '#fff3cd' : '#f8d7da',
+                          color:
+                            sale.paymentMethod === 'cash' ? '#155724' :
+                            sale.paymentMethod === 'credit' ? '#004085' :
+                            sale.paymentMethod === 'gcash' ? '#856404' : '#721c24'
+                        }}>
+                          {sale.paymentMethod.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          backgroundColor: 
+                            sale.status === 'cancelled' ? '#dc3545' :
+                            sale.status === 'unpaid' ? '#ffc107' :
+                            sale.modified_at ? '#17a2b8' : '#28a745',
+                          color: 
+                            sale.status === 'cancelled' ? 'white' :
+                            sale.status === 'unpaid' ? '#000' :
+                            sale.modified_at ? 'white' : 'white'
+                        }}>
+                          {sale.status === 'cancelled' ? '❌ CANCELLED' :
+                            sale.status === 'unpaid' ? '💸 UNPAID' :
+                            sale.modified_at ? '✏️ MODIFIED' : '✅ COMPLETED'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #dee2e6' }}>
+                        {sale.status === 'unpaid' ? (
+                          <button
+                            onClick={() => handleMarkAsPaid(sale)}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px'
+                            }}
+                            title="Mark as Paid"
+                          >
+                            ✅ Mark As Paid
+                          </button>
+                        ) : sale.status !== 'cancelled' ? (
+                          <button
+                            onClick={() => handleCancelSale(sale)}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px'
+                            }}
+                            title="Cancel Transaction"
+                          >
+                            🗑️ Cancel
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#666' }}>
+                            No actions
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                        {sale.status === 'cancelled' && sale.cancellation_reason ? (
+                          <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
+                            Reason: {sale.cancellation_reason}
+                          </span>
+                        ) : sale.status === 'completed' && sale.paid_at ? (
+                          <span style={{ color: '#28a745' }}>
+                            Paid On: {formatDate(sale.paid_at)}
+                          </span>
+                        ) : sale.status === 'unpaid' ? (
+                          <span style={{ color: '#ffc107' }}>
+                            Awaiting payment
+                          </span>
+                        ) : (
+                          <span style={{ color: '#999' }}>No remarks</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                        {sale.customer_name || <span style={{ color: '#999' }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-          </div>
+        </div>
       )}
 
       {/* Cancel Transaction Modal */}
@@ -860,8 +834,8 @@ const SalesReports = () => {
           </div>
         </div>
       )}
-    
     </div>
   );
 };
+
 export default SalesReports;

@@ -174,9 +174,45 @@ const POSInterface = () => {
     );
   };
 
+  //const processSale = async () => {
+  //  if (cart.length === 0) {
+  //    setMessage('Cart is empty');
+  //    return;
+  //  }
+   // setIsProcessing(true);
+  //  try {
+  //    const saleData = {
+   //     items: cart.map(item => ({
+   //       id: item.id,
+   //       name: item.name,
+   //       price: item.price,
+   //       quantity: item.quantity
+    //    })),
+   //     total: total,
+    //    paymentMethod: paymentMethod,
+    //    customer_name: customerName || 'cash'
+   //   };
+  //    const response = await axios.post(`${API_BASE}/sales`, saleData);
+  //    if (response.data.success) {
+  //      setMessage(`Sale completed! Transaction ID: ${response.data.saleId}`);
+   //     setCart([]);
+   //     setCurrentProduct(null);
+   //     loadProducts();
+   //   }
+  //  } catch (error) {
+  //    console.error('Error processing sale:', error);
+  //    setMessage('Error processing sale');
+   // } finally {
+   //   setIsProcessing(false);
+//    }
+//  };
   const processSale = async () => {
     if (cart.length === 0) {
       setMessage('Cart is empty');
+      return;
+    }
+    if (paymentMethod === 'cash' && (isNaN(paymentAmount) || parseFloat(paymentAmount) < total)) {
+      setMessage('Payment amount must be at least the total amount due');
       return;
     }
     setIsProcessing(true);
@@ -192,11 +228,33 @@ const POSInterface = () => {
         paymentMethod: paymentMethod,
         customer_name: customerName || 'cash'
       };
-      const response = await axios.post(`${API_BASE}/sales`, saleData);
-      if (response.data.success) {
-        setMessage(`Sale completed! Transaction ID: ${response.data.saleId}`);
+      const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
+      if (saleResponse.data.success) {
+        if (paymentMethod === 'cash') {
+          const cashRegisterData = {
+            amount: total,
+            transaction_type: 'add',
+            description: `Cash sale (Transaction ID: ${saleResponse.data.saleId})`
+          };
+          try {
+            const cashResponse = await axios.post(`${API_BASE}/cash/update`, cashRegisterData);
+            if (cashResponse.data.message === 'Cash updated successfully') {
+              setMessage(`Sale completed! Transaction ID: ${saleResponse.data.saleId}. Cash register updated.`);
+            } else {
+              setMessage(`Sale completed, but cash register update failed.`);
+            }
+          } catch (cashError) {
+            console.error('Error updating cash register:', cashError);
+            setMessage(`Sale completed, but error updating cash register: ${cashError.message}`);
+          }
+        } else {
+          setMessage(`Sale completed! Transaction ID: ${saleResponse.data.saleId}`);
+        }
         setCart([]);
         setCurrentProduct(null);
+        setPaymentAmount('');
+        setChangeAmount(0);
+        setCustomerName('');
         loadProducts();
       }
     } catch (error) {
@@ -353,6 +411,80 @@ const POSInterface = () => {
           justify-content: space-between;
         }
 
+        .payment-buttons {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+          margin-bottom: 15px;
+        }
+
+        .payment-button {
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: clamp(12px, 2.5vw, 14px);
+          min-height: 44px;
+          min-width: 44px;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .payment-button.cash {
+          background-color: #e2f0d9;
+          border-color: #c3e6cb;
+          color: #155724;
+        }
+
+        .payment-button.cash.active {
+          background-color: #c3e6cb;
+          border-color: #a3d6a9;
+          color: #155724;
+        }
+
+        .payment-button.credit {
+          background-color: #fff3e0;
+          border-color: #ffcc80;
+          color: #e65100;
+        }
+
+        .payment-button.credit.active {
+          background-color: #ffcc80;
+          border-color: #ffb74d;
+          color: #e65100;
+        }
+
+        .payment-button.gcash {
+          background-color: #e3f2fd;
+          border-color: #90caf9;
+          color: #1565c0;
+        }
+
+        .payment-button.gcash.active {
+          background-color: #90caf9;
+          border-color: #64b5f6;
+          color: #1565c0;
+        }
+
+        .payment-button.paymaya {
+          background-color: #d4edda;
+          border-color: #81c784;
+          color: #000000;
+        }
+
+        .payment-button.paymaya.active {
+          background-color: #81c784;
+          border-color: #4caf50;
+          color: #000000;
+        }
+
+        .payment-button:hover:not(.active) {
+          filter: brightness(95%);
+        }
+
         /* Portrait Mode */
         @media (max-width: 767px) and (orientation: portrait) {
           .pos-container {
@@ -380,6 +512,13 @@ const POSInterface = () => {
           .summary-section {
             min-height: auto;
           }
+          .payment-buttons {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          .payment-button {
+            font-size: clamp(10px, 2.5vw, 12px);
+            padding: 8px;
+          }
         }
 
         /* Landscape Mode */
@@ -398,6 +537,9 @@ const POSInterface = () => {
           }
           .checkout-card {
             max-width: none;
+          }
+          .payment-button {
+            font-size: clamp(11px, 2vw, 13px);
           }
         }
 
@@ -420,6 +562,12 @@ const POSInterface = () => {
           }
           .products-grid {
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          }
+          .payment-buttons {
+            grid-template-columns: repeat(4, 1fr);
+          }
+          .payment-button {
+            font-size: clamp(12px, 1.5vw, 14px);
           }
         }
 
@@ -775,22 +923,32 @@ const POSInterface = () => {
             </div>
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Payment Method:</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="cash">Cash</option>
-                <option value="credit">Credit</option>
-                <option value="gcash">GCash</option>
-                <option value="paymaya">PayMaya</option>
-              </select>
+              <div className="payment-buttons">
+                <button
+                  className={`payment-button cash ${paymentMethod === 'cash' ? 'active' : ''}`}
+                  onClick={() => setPaymentMethod('cash')}
+                >
+                  Cash
+                </button>
+                <button
+                  className={`payment-button credit ${paymentMethod === 'credit' ? 'active' : ''}`}
+                  onClick={() => setPaymentMethod('credit')}
+                >
+                  Credit
+                </button>
+                <button
+                  className={`payment-button gcash ${paymentMethod === 'gcash' ? 'active' : ''}`}
+                  onClick={() => setPaymentMethod('gcash')}
+                >
+                  GCash
+                </button>
+                <button
+                  className={`payment-button paymaya ${paymentMethod === 'paymaya' ? 'active' : ''}`}
+                  onClick={() => setPaymentMethod('paymaya')}
+                >
+                  PayMaya
+                </button>
+              </div>
             </div>
             {paymentMethod === 'cash' && (
               <div style={{ marginBottom: '15px' }}>

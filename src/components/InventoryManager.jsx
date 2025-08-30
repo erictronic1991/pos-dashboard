@@ -5,24 +5,26 @@ import CameraCapture from './CameraCapture';
 const InventoryManager = () => {
   const [products, setProducts] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
+  const [nearExpirationProducts, setNearExpirationProducts] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('success'); // 'success', 'error', 'warning'
+  const [messageType, setMessageType] = useState('success');
   const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('name'); // 'name', 'category', 'price', 'stock'
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [inventoryStats, setInventoryStats] = useState({
     totalValue: 0,
-    cashOnHand: 1000, // Starting cash amount
+    cashOnHand: 1000,
     totalProducts: 0,
     lowStockCount: 0,
     outOfStockCount: 0
   });
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
-  const [cashAction, setCashAction] = useState('add'); // 'add' or 'remove'
+  const [cashAction, setCashAction] = useState('add');
   const [showCamera, setShowCamera] = useState(false);
+  const [showRestockModal, setShowRestockModal] = useState(null);
 
   const API_BASE = 'http://localhost:8000';
 
@@ -35,27 +37,41 @@ const InventoryManager = () => {
     brand: '',
     description: '',
     min_stock: '5',
-    image_url: ''
+    image_url: '',
+    expiration_date: ''
+  });
+
+  const [restockData, setRestockData] = useState({
+    quantity: '',
+    notes: '',
+    expiration_date: ''
   });
 
   useEffect(() => {
-    loadProducts();
-    loadLowStockProducts();
+    const fetchData = async () => {
+      await loadProducts();
+      await loadLowStockProducts();
+      await loadNearExpirationProducts();
+      await loadCashBalance();
+    };
+    fetchData();
   }, []);
 
-  // Calculate inventory statistics whenever products change
   useEffect(() => {
-    calculateInventoryStats();
+    if (products.length > 0) {
+      console.log('DEBUG - Calculating inventory stats with products:', products);
+      calculateInventoryStats();
+    } else {
+      console.log('DEBUG - Skipping stats calculation: No products loaded');
+    }
   }, [products]);
 
   const calculateInventoryStats = () => {
+    console.log('DEBUG - Starting calculateInventoryStats');
     const stats = products.reduce((acc, product) => {
-      const productValue = product.price * product.quantity;
+      const productValue = (product.price || 0) * (product.quantity || 0);
       
-      // Debug logging for low stock detection
-      if (product.quantity <= product.min_stock) {
-        console.log(`Low stock detected: ${product.name} - Quantity: ${product.quantity}, Min Stock: ${product.min_stock}`);
-      }
+      console.log(`DEBUG - Product: ${product.name}, Value: ${productValue}, Quantity: ${product.quantity}, Min Stock: ${product.min_stock}`);
       
       return {
         totalValue: acc.totalValue + productValue,
@@ -70,15 +86,84 @@ const InventoryManager = () => {
       outOfStockCount: 0
     });
 
-    console.log('Calculated inventory stats:', stats);
+    console.log('DEBUG - Calculated inventory stats:', stats);
     setInventoryStats(prev => ({
       ...prev,
       ...stats
     }));
   };
 
-  // Cash management functions
-  const handleCashUpdate = () => {
+  const loadCashBalance = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/cash/balance`);
+      setInventoryStats(prev => ({
+        ...prev,
+        cashOnHand: response.data.cashOnHand || 0
+      }));
+    } catch (error) {
+      console.error('Error loading cash balance:', error);
+      setMessage('Error loading cash balance');
+      setMessageType('error');
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      console.log('DEBUG - Loading products from:', `${API_BASE}/products`);
+      const response = await axios.get(`${API_BASE}/products`);
+      console.log('DEBUG - Products response:', response.data);
+      if (Array.isArray(response.data)) {
+        setProducts(response.data);
+      } else {
+        console.error('DEBUG - Invalid products response: Not an array', response.data);
+        setMessage('Invalid product data received from server');
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+      setMessage(error.response?.data?.error || 'Error loading products');
+      setMessageType('error');
+      if (!products.length) {
+        setProducts([]);
+      }
+    }
+  };
+
+  const loadLowStockProducts = async () => {
+    try {
+      console.log('DEBUG - Loading low stock products from:', `${API_BASE}/products/low-stock`);
+      const response = await axios.get(`${API_BASE}/products/low-stock`);
+      console.log('DEBUG - Low stock products response:', response.data);
+      if (Array.isArray(response.data)) {
+        setLowStockProducts(response.data);
+      } else {
+        console.error('DEBUG - Invalid low stock products response: Not an array', response.data);
+      }
+    } catch (error) {
+      console.error('Error loading low stock products:', error);
+      setMessage('Error loading low stock products');
+      setMessageType('error');
+    }
+  };
+
+  const loadNearExpirationProducts = async () => {
+    try {
+      console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
+      const response = await axios.get(`${API_BASE}/products/near-expiration`);
+      console.log('DEBUG - Near expiration products response:', response.data);
+      if (Array.isArray(response.data)) {
+        setNearExpirationProducts(response.data);
+      } else {
+        console.error('DEBUG - Invalid near expiration products response: Not an array', response.data);
+      }
+    } catch (error) {
+      console.error('Error loading near expiration products:', error);
+      setMessage('Error loading near expiration products');
+      setMessageType('error');
+    }
+  };
+
+  const handleCashUpdate = async () => {
     const amount = parseFloat(cashAmount);
     if (isNaN(amount) || amount <= 0) {
       setMessage('Please enter a valid amount');
@@ -86,52 +171,32 @@ const InventoryManager = () => {
       return;
     }
 
-    const newCashAmount = cashAction === 'add' 
-      ? inventoryStats.cashOnHand + amount 
-      : inventoryStats.cashOnHand - amount;
+    try {
+      const response = await axios.post(`${API_BASE}/cash/update`, {
+        amount,
+        transaction_type: cashAction,
+        description: `${cashAction === 'add' ? 'Added' : 'Removed'} cash via Inventory Manager`
+      });
 
-    if (newCashAmount < 0) {
-      setMessage('Cannot remove more cash than available');
+      setInventoryStats(prev => ({
+        ...prev,
+        cashOnHand: response.data.cashOnHand
+      }));
+
+      setMessage(response.data.message || `Cash ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
+      setMessageType('success');
+      setShowCashModal(false);
+      setCashAmount('');
+    } catch (error) {
+      console.error('Error updating cash:', error);
+      setMessage(error.response?.data?.error || 'Error updating cash');
       setMessageType('error');
-      return;
-    }
-
-    setInventoryStats(prev => ({
-      ...prev,
-      cashOnHand: newCashAmount
-    }));
-
-    setMessage(`Cash ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
-    setMessageType('success');
-    setShowCashModal(false);
-    setCashAmount('');
-  };
-
-  const loadProducts = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/products`);
-      setProducts(response.data);
-    } catch (error) {
-      console.error('Error loading products:', error);
-      setMessage('Error loading products');
-    }
-  };
-
-  const loadLowStockProducts = async () => {
-    try {
-      console.log('Loading low stock products from:', `${API_BASE}/products/low-stock`);
-      const response = await axios.get(`${API_BASE}/products/low-stock`);
-      console.log('Low stock products response:', response.data);
-      setLowStockProducts(response.data);
-    } catch (error) {
-      console.error('Error loading low stock products:', error);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Frontend validation
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
       setMessage(`Validation Error: ${validationErrors.join(', ')}`);
@@ -140,59 +205,92 @@ const InventoryManager = () => {
     }
     
     try {
-      // Prepare data with proper types
       const submitData = {
-      name: formData.name.trim(),
-      price: parseFloat(formData.price),
-      quantity: formData.quantity ? parseInt(formData.quantity) : 0,
-      barcode: formData.barcode.trim() || undefined,
-      category: formData.category.trim() || undefined,
-      brand: formData.brand.trim() || undefined,
-      description: formData.description.trim() || undefined,
-      min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5,
-      image_url: formData.image_url || undefined // ✅ Add this line
+        name: formData.name.trim(),
+        price: parseFloat(formData.price),
+        quantity: formData.quantity ? parseInt(formData.quantity) : 0,
+        barcode: formData.barcode.trim() || undefined,
+        category: formData.category.trim() || undefined,
+        brand: formData.brand.trim() || undefined,
+        description: formData.description.trim() || undefined,
+        min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5,
+        image_url: formData.image_url || undefined,
+        expiration_date: formData.expiration_date || undefined
       };
 
-      console.log('Submitting data with image:', submitData); // ✅ Debug log
+      console.log('DEBUG - Submitting data:', submitData);
 
       if (editingProduct) {
-        // Update existing product
-        const response = await axios.put(`${API_BASE}/products/${editingProduct.id}`, submitData);
+        await axios.put(`${API_BASE}/products/${editingProduct.id}`, submitData);
         setMessage('Product updated successfully');
-        setMessageType('success');
-        console.log('Update response:', response.data);
       } else {
-        // Add new product
         const response = await axios.post(`${API_BASE}/products`, submitData);
         setMessage(`Product added successfully. Barcode: ${response.data.barcode}`);
-        setMessageType('success');
-        console.log('Add response:', response.data);
       }
       
+      setMessageType('success');
       resetForm();
-      loadProducts();
-      loadLowStockProducts();
+      await loadProducts();
+      await loadLowStockProducts();
+      await loadNearExpirationProducts();
     } catch (error) {
       console.error('Error saving product:', error);
-      
-      // Better error handling
-      let errorMessage = 'Error saving product';
-      
-      if (error.response) {
-        // Server responded with error status
-        console.error('Server error response:', error.response.data);
-        errorMessage = `Server Error: ${error.response.data.error || error.response.statusText}`;
-      } else if (error.request) {
-        // Request was made but no response received
-        console.error('Network error:', error.request);
-        errorMessage = 'Network Error: Unable to connect to server';
-      } else {
-        // Something else happened
-        console.error('Error details:', error.message);
-        errorMessage = `Error: ${error.message}`;
+      setMessage(error.response?.data?.error || 'Error saving product');
+      setMessageType('error');
+    }
+  };
+
+  const handleRestockSubmit = async (productId) => {
+    const quantity = parseInt(restockData.quantity);
+    if (!quantity || quantity <= 0) {
+      setMessage('Please enter a valid quantity');
+      setMessageType('error');
+      return;
+    }
+
+    if (restockData.expiration_date) {
+      const date = new Date(restockData.expiration_date);
+      if (isNaN(date.getTime()) || date < new Date()) {
+        setMessage('Expiration date must be a valid future date');
+        setMessageType('error');
+        return;
       }
-      
-      setMessage(errorMessage);
+    }
+
+    try {
+      await axios.post(`${API_BASE}/products/${productId}/restock`, {
+        quantity,
+        notes: restockData.notes || 'Manual restock',
+        expiration_date: restockData.expiration_date || undefined
+      });
+      setMessage('Product restocked successfully');
+      setMessageType('success');
+      setShowRestockModal(null);
+      setRestockData({ quantity: '', notes: '', expiration_date: '' });
+      await loadProducts();
+      await loadLowStockProducts();
+      await loadNearExpirationProducts();
+    } catch (error) {
+      console.error('Error restocking product:', error);
+      setMessage(error.response?.data?.error || 'Error restocking product');
+      setMessageType('error');
+    }
+  };
+
+  const handleExpirationAction = async (productId, expirationDate, action) => {
+    try {
+      await axios.post(`${API_BASE}/products/expiration-notification`, {
+        productId,
+        expirationDate,
+        action
+      });
+      setMessage(action === 'clear' ? 'Expiration notification cleared' : 'Items pulled due to expiration');
+      setMessageType('success');
+      await loadProducts();
+      await loadNearExpirationProducts();
+    } catch (error) {
+      console.error(`Error handling expiration action (${action}):`, error);
+      setMessage(error.response?.data?.error || `Error handling expiration action`);
       setMessageType('error');
     }
   };
@@ -200,7 +298,6 @@ const InventoryManager = () => {
   const validateForm = () => {
     const errors = [];
     
-    // Required fields
     if (!formData.name || formData.name.trim() === '') {
       errors.push('Product name is required');
     }
@@ -214,7 +311,6 @@ const InventoryManager = () => {
       }
     }
     
-    // Optional but validated fields
     if (formData.quantity && formData.quantity !== '') {
       const quantity = parseInt(formData.quantity);
       if (isNaN(quantity) || quantity < 0) {
@@ -229,7 +325,6 @@ const InventoryManager = () => {
       }
     }
     
-    // Barcode validation (if provided)
     if (formData.barcode && formData.barcode.trim() !== '') {
       const barcode = formData.barcode.trim();
       if (barcode.length < 3) {
@@ -237,6 +332,15 @@ const InventoryManager = () => {
       }
       if (!/^[0-9A-Za-z\-_]+$/.test(barcode)) {
         errors.push('Barcode can only contain letters, numbers, hyphens, and underscores');
+      }
+    }
+    
+    if (formData.expiration_date) {
+      const date = new Date(formData.expiration_date);
+      if (isNaN(date.getTime())) {
+        errors.push('Expiration date must be a valid date');
+      } else if (date < new Date()) {
+        errors.push('Expiration date cannot be in the past');
       }
     }
     
@@ -253,7 +357,8 @@ const InventoryManager = () => {
       brand: '',
       description: '',
       min_stock: '5',
-      image_url: ''
+      image_url: '',
+      expiration_date: ''
     });
     setEditingProduct(null);
     setShowAddForm(false);
@@ -261,12 +366,50 @@ const InventoryManager = () => {
 
   const handleImageCaptured = (imageUrl) => {
     setFormData(prev => ({ ...prev, image_url: imageUrl }));
-    setMessage('Product image captured successfully!');
+    setMessage('Product image added successfully!');
     setMessageType('success');
+    setShowCamera(false);
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      setMessage('Please upload a PNG, JPG, or JPEG image');
+      setMessageType('error');
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setMessage('Image size must be less than 5MB');
+      setMessageType('error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await axios.post(`${API_BASE}/products/upload-image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setFormData(prev => ({ ...prev, image_url: response.data.image_url }));
+      setMessage('Image uploaded successfully!');
+      setMessageType('success');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setMessage(error.response?.data?.error || 'Error uploading image');
+      setMessageType('error');
+    }
   };
 
   const removeImage = () => {
     setFormData(prev => ({ ...prev, image_url: '' }));
+    setMessage('Image removed successfully');
+    setMessageType('success');
   };
 
   const handleEdit = (product) => {
@@ -278,10 +421,17 @@ const InventoryManager = () => {
       category: product.category || '',
       brand: product.brand || '',
       description: product.description || '',
-      min_stock: product.min_stock || '5'
+      min_stock: product.min_stock || '5',
+      image_url: product.image_url || '',
+      expiration_date: product.expiration_date || ''
     });
     setEditingProduct(product);
     setShowAddForm(true);
+  };
+
+  const handleRestock = (product) => {
+    setShowRestockModal(product);
+    setRestockData({ quantity: '', notes: '', expiration_date: '' });
   };
 
   const handleDelete = async (productId) => {
@@ -289,29 +439,14 @@ const InventoryManager = () => {
       try {
         await axios.delete(`${API_BASE}/products/${productId}`);
         setMessage('Product deleted successfully');
-        loadProducts();
-        loadLowStockProducts();
+        setMessageType('success');
+        await loadProducts();
+        await loadLowStockProducts();
+        await loadNearExpirationProducts();
       } catch (error) {
         console.error('Error deleting product:', error);
         setMessage('Error deleting product');
-      }
-    }
-  };
-
-  const handleRestock = async (productId) => {
-    const quantity = prompt('Enter quantity to add:');
-    if (quantity && !isNaN(quantity) && parseInt(quantity) > 0) {
-      try {
-        await axios.post(`${API_BASE}/products/${productId}/restock`, {
-          quantity: parseInt(quantity),
-          notes: 'Manual restock'
-        });
-        setMessage('Product restocked successfully');
-        loadProducts();
-        loadLowStockProducts();
-      } catch (error) {
-        console.error('Error restocking product:', error);
-        setMessage('Error restocking product');
+        setMessageType('error');
       }
     }
   };
@@ -323,10 +458,10 @@ const InventoryManager = () => {
     } catch (error) {
       console.error('Error generating barcode:', error);
       setMessage('Error generating barcode');
+      setMessageType('error');
     }
   };
 
-  // Get unique categories for filtering
   const getUniqueCategories = () => {
     const categories = products
       .map(product => product.category)
@@ -336,46 +471,20 @@ const InventoryManager = () => {
     return categories;
   };
 
-  // Get unique brands for filtering
-  const getUniqueBrands = () => {
-    const brands = products
-      .map(product => product.brand)
-      .filter(brand => brand && brand.trim() !== '')
-      .filter((brand, index, arr) => arr.indexOf(brand) === index)
-      .sort();
-    return brands;
-  };
-
-  // Handle sorting
-  const handleSort = (column) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortOrder('asc');
-    }
-  };
-
-  // Filter and sort products
   const getFilteredAndSortedProducts = () => {
     let filtered = products.filter(product => {
-      // Apply stock filters
       if (filter === 'low-stock') {
         return product.quantity <= product.min_stock;
       }
       if (filter === 'out-of-stock') {
         return product.quantity === 0;
       }
-      
-      // Apply category filter
       if (filter !== 'all' && filter !== 'low-stock' && filter !== 'out-of-stock') {
         return product.category === filter;
       }
-      
       return true;
     });
 
-    // Sort products
     filtered.sort((a, b) => {
       let aValue, bValue;
       
@@ -535,6 +644,66 @@ const InventoryManager = () => {
           </div>
         )}
       </div>
+
+      {/* Near Expiration Alert */}
+      {nearExpirationProducts.length > 0 && (
+        <div style={{
+          backgroundColor: '#ffebee',
+          border: '1px solid #ef9a9a',
+          borderRadius: '4px',
+          padding: '15px',
+          marginBottom: '20px'
+        }}>
+          <h4 style={{ color: '#c62828', margin: '0 0 10px 0' }}>
+            🕒 Near Expiration Alert ({nearExpirationProducts.length} items)
+          </h4>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+            {nearExpirationProducts.map(product => (
+              <div key={`${product.id}-${product.expiration_date}`} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span
+                  style={{
+                    backgroundColor: '#ef9a9a',
+                    padding: '5px 10px',
+                    borderRadius: '15px',
+                    fontSize: '12px',
+                    color: '#c62828'
+                  }}
+                >
+                  {product.name} (Expires: {product.expiration_date})
+                </span>
+                <button
+                  onClick={() => handleExpirationAction(product.id, product.expiration_date, 'clear')}
+                  style={{
+                    padding: '5px 10px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  No Action Needed
+                </button>
+                <button
+                  onClick={() => handleExpirationAction(product.id, product.expiration_date, 'pull')}
+                  style={{
+                    padding: '5px 10px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Pulled from Inventory
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Low Stock Alert */}
       {lowStockProducts.length > 0 && (
@@ -696,6 +865,20 @@ const InventoryManager = () => {
                   }}
                 />
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px' }}>Expiration Date</label>
+                <input
+                  type="date"
+                  value={formData.expiration_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expiration_date: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
             </div>
             <div style={{ marginTop: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
@@ -741,7 +924,7 @@ const InventoryManager = () => {
                   />
                   <div style={{ flex: 1 }}>
                     <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '5px' }}>
-                      ✅ Image captured successfully!
+                      ✅ Image added successfully!
                     </div>
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       Image will be displayed in POS and inventory
@@ -772,28 +955,51 @@ const InventoryManager = () => {
                   backgroundColor: '#f8f9fa'
                 }}>
                   <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
-                  <div style={{ marginBottom: '10px', color: '#666' }}>
+                  <div style={{ marginBottom: '15px', color: '#666' }}>
                     Add a product image to help with identification
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCamera(true)}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      margin: '0 auto'
-                    }}
-                  >
-                    📸 Take Photo
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCamera(true)}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      📸 Take Photo
+                    </button>
+                    <label
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      📤 Upload Image
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
                   <div style={{ 
                     fontSize: '12px', 
                     color: '#999', 
@@ -835,6 +1041,113 @@ const InventoryManager = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Restock Modal */}
+      {showRestockModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            minWidth: '400px'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', textAlign: 'center' }}>
+              📦 Restock {showRestockModal.name}
+            </h3>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Quantity *
+              </label>
+              <input
+                type="number"
+                value={restockData.quantity}
+                onChange={(e) => setRestockData(prev => ({ ...prev, quantity: e.target.value }))}
+                placeholder="Enter quantity to add"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+                autoFocus
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Notes
+              </label>
+              <textarea
+                value={restockData.notes}
+                onChange={(e) => setRestockData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Optional restock notes"
+                rows="3"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Expiration Date
+              </label>
+              <input
+                type="date"
+                value={restockData.expiration_date}
+                onChange={(e) => setRestockData(prev => ({ ...prev, expiration_date: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => handleRestockSubmit(showRestockModal.id)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Restock
+              </button>
+              <button
+                onClick={() => setShowRestockModal(null)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -928,6 +1241,7 @@ const InventoryManager = () => {
               <th style={{ padding: '12px', textAlign: 'right', border: '1px solid #dee2e6' }}>Price</th>
               <th style={{ padding: '12px', textAlign: 'right', border: '1px solid #dee2e6' }}>Stock</th>
               <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Barcode</th>
+              <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #dee2e6' }}>Expiration</th>
               <th style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>Actions</th>
             </tr>
           </thead>
@@ -936,11 +1250,10 @@ const InventoryManager = () => {
               <tr key={product.id} style={{ 
                 backgroundColor: product.quantity <= product.min_stock ? '#fff3cd' : 'white'
               }}>
-                
                 <td style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>
                   {product.image_url ? (
                     <img
-                      src={`http://localhost:8000${product.image_url}`}
+                      src={`${API_BASE}${product.image_url}`}
                       alt={product.name}
                       style={{
                         width: '60px',
@@ -954,7 +1267,6 @@ const InventoryManager = () => {
                     <span style={{ fontSize: '12px', color: '#999' }}>No image</span>
                   )}
                 </td>
-
                 <td style={{ padding: '12px', border: '1px solid #dee2e6' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {product.quantity <= product.min_stock && (
@@ -1022,6 +1334,9 @@ const InventoryManager = () => {
                 <td style={{ padding: '12px', border: '1px solid #dee2e6', fontSize: '12px' }}>
                   {product.barcode || '-'}
                 </td>
+                <td style={{ padding: '12px', border: '1px solid #dee2e6', fontSize: '12px' }}>
+                  {product.expiration_date || '-'}
+                </td>
                 <td style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>
                   <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
                     <button
@@ -1039,7 +1354,7 @@ const InventoryManager = () => {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleRestock(product.id)}
+                      onClick={() => handleRestock(product)}
                       style={{
                         padding: '5px 10px',
                         backgroundColor: '#28a745',
