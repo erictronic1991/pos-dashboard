@@ -28,27 +28,27 @@ export default function DashboardPage() {
       label: 'POS System', 
       icon: '🛒',
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      description: 'Process sales & transactions'
+      description: 'Process sales & checkouts'
     },
     { 
       id: 'inventory', 
       label: 'Inventory Management', 
       icon: '📦',
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      description: 'Manage products & stock'
+      description: 'Manage cash & stock'
     },
     { 
       id: 'reports', 
       label: 'Transaction History', 
       icon: '📋',
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      description: 'Sales & Creditor Logs'
+      description: 'Sales, Cashflow & Creditor Logs'
     },
     { 
       id: 'analytics', 
       label: 'Sales Dashboard', 
       icon: '💹',
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      gradient: 'linear-gradient(135deg, #8ffe4fff 0%, #c7f0b0ff 100%)',
       description: 'Analytics & Insights'
     }
   ];

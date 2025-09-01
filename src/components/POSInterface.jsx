@@ -731,11 +731,12 @@ const POSInterface = () => {
                     📦
                   </div>
                 </div>
+                {/* Product Card */}
                 <div className="product-details">
                   <div>
                     <div style={{ 
                       fontWeight: 'bold', 
-                      marginBottom: '4px',
+                      marginBottom: '-20px',
                       fontSize: '13px',
                       lineHeight: '1.3',
                       minHeight: '34px',
@@ -745,6 +746,18 @@ const POSInterface = () => {
                       overflow: 'hidden'
                     }}>
                       {product.name}
+                    </div>
+                    <div style={{ 
+                        fontWeight: 'bold', 
+                        fontSize: '13px', 
+                        color: '#000000ff', 
+                        fontWeight: '500', 
+                        marginBottom: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                    }}>
+                    {product.description}
                     </div>
                     {product.brand && (
                       <div style={{ 

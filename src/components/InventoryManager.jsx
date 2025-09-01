@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import CameraCapture from './CameraCapture';
+import Papa from 'papaparse'; // Import PapaParse
 
 const InventoryManager = () => {
   const [products, setProducts] = useState([]);
@@ -53,6 +54,120 @@ const InventoryManager = () => {
     notes: '',
     expiration_date: ''
   });
+
+  // Existing state declarations...
+  const [csvFile, setCsvFile] = useState(null); // New state for CSV file
+  const [csvErrors, setCsvErrors] = useState([]); // New state for CSV validation errors
+
+  // New function to handle CSV file selection
+  const handleCsvUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.csv')) {
+      setMessage('Please upload a valid CSV file');
+      setMessageType('error');
+      return;
+    }
+
+    setCsvFile(file);
+  };
+
+  // New function to parse and process CSV
+  const handleCsvImport = () => {
+  if (!csvFile) {
+    setMessage('No CSV file selected');
+    setMessageType('error');
+    return;
+  }
+
+  Papa.parse(csvFile, {
+    header: true,
+    skipEmptyLines: true,
+    complete: async (result) => {
+      console.log('Parsed CSV Data:', result.data);
+      console.log('Parsed CSV Headers:', result.meta.fields);
+      const products = result.data;
+      const errors = [];
+      const validProducts = [];
+
+      // Check for required headers
+      const expectedHeaders = ['name', 'price', 'quantity', 'barcode', 'category', 'brand', 'description', 'min_stock', 'image_url', 'expiration_date'];
+      if (!expectedHeaders.every(header => result.meta.fields.includes(header))) {
+        setMessage('CSV file must include all expected headers: ' + expectedHeaders.join(', '));
+        setMessageType('error');
+        return;
+      }
+
+      products.forEach((product, index) => {
+        console.log(`Row ${index + 2} Raw Data:`, product);
+        const formData = {
+          name: product.name?.trim() || 'Unnamed Product', // Default name
+          price: product.price?.toString().trim() || '0', // Default price
+          quantity: product.quantity?.toString().trim() || '0', // Default quantity
+          barcode: product.barcode?.trim() || '',
+          category: product.category?.trim() || '',
+          brand: product.brand?.trim() || '',
+          description: product.description?.trim() || '',
+          min_stock: product.min_stock?.toString().trim() || '5', // Default min_stock
+          image_url: product.image_url?.trim() || '',
+          expiration_date: product.expiration_date?.trim() || '',
+        };
+        console.log(`Row ${index + 2} Formatted Data:`, formData);
+
+        const validationErrors = validateForm(formData);
+        if (validationErrors.length > 0) {
+          errors.push(`Row ${index + 2}: ${validationErrors.join(', ')}`);
+        } else {
+          validProducts.push({
+            name: formData.name,
+            price: parseFloat(formData.price) || 0, // Default to 0 if invalid
+            quantity: parseInt(formData.quantity) || 0, // Default to 0
+            barcode: formData.barcode || undefined,
+            category: formData.category || undefined,
+            brand: formData.brand || undefined,
+            description: formData.description || undefined,
+            min_stock: parseInt(formData.min_stock) || 5, // Default to 5
+            image_url: formData.image_url || undefined,
+            expiration_date: formData.expiration_date || undefined,
+          });
+        }
+      });
+
+      console.log('Validation Errors:', errors);
+      console.log('Valid Products:', validProducts);
+      if (errors.length > 0) {
+        setCsvErrors(errors);
+        setMessage('Some rows contain errors. Please fix and try again.');
+        setMessageType('error');
+        return;
+      }
+
+      try {
+        const response = await axios.post(`${API_BASE}/products/import-csv`, {
+          products: validProducts,
+        });
+        setMessage(`Successfully imported ${validProducts.length} products`);
+        setMessageType('success');
+        setCsvFile(null);
+        setCsvErrors([]);
+        await loadProducts();
+        await loadLowStockProducts();
+        await loadNearExpirationProducts();
+      } catch (error) {
+        console.error('Error importing CSV:', error);
+        setMessage(error.response?.data?.error || 'Error importing products');
+        setMessageType('error');
+      }
+    },
+    error: (error) => {
+      console.error('CSV parsing error:', error);
+      setMessage('Error parsing CSV file');
+      setMessageType('error');
+    },
+  });
+};
 
   useEffect(() => {
     const fetchData = async () => {
@@ -178,90 +293,105 @@ const InventoryManager = () => {
   };
 
   const handleCashUpdate = async () => {
-    const cash = parseFloat(cashAmount) || 0;
-    const gcash = parseFloat(gcashAmount) || 0;
-    const paymaya = parseFloat(paymayaAmount) || 0;
+  const cash = parseFloat(cashAmount) || 0;
+  const gcash = parseFloat(gcashAmount) || 0;
+  const paymaya = parseFloat(paymayaAmount) || 0;
 
-    if (cash <= 0 && gcash <= 0 && paymaya <= 0) {
-      setMessage('Please enter a valid amount for at least one payment method');
-      setMessageType('error');
-      return;
-    }
+  if (cash <= 0 && gcash <= 0 && paymaya <= 0) {
+    setMessage('Please enter a valid amount for at least one payment method');
+    setMessageType('error');
+    return;
+  }
 
-    try {
-      const response = await axios.post(`${API_BASE}/cash/update`, {
-        cashOnHand: cash,
-        gcashBalance: gcash,
-        paymayaBalance: paymaya,
-        transaction_type: cashAction,
-        description: `${cashAction === 'add' ? 'Added' : 'Removed'} funds via Inventory Manager`
-      });
+  // Helper function to generate description with optional reason
+  const getTransactionDescription = (action, reason) => {
+    const baseDescription = `${action === 'add' ? 'Added' : 'Removed'} funds via Inventory Manager`;
+    return reason && reason.trim() ? `${baseDescription}: ${reason.trim()}` : baseDescription;
+  };
 
-      setInventoryStats(prev => ({
-        ...prev,
-        cashOnHand: response.data.cashOnHand,
-        gcashBalance: response.data.gcashBalance,
-        paymayaBalance: response.data.paymayaBalance
-      }));
+  try {
+    const response = await axios.post(`${API_BASE}/cash/update`, {
+      cashOnHand: cash,
+      gcashBalance: gcash,
+      paymayaBalance: paymaya,
+      transaction_type: cashAction,
+      description: getTransactionDescription(cashAction, transactionReason)
+    });
 
-      setMessage(response.data.message || `Funds ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
-      setMessageType('success');
-      setShowCashModal(false);
-      setCashAmount('');
-      setGcashAmount('');
-      setPaymayaAmount('');
-    } catch (error) {
-      console.error('Error updating cash balances:', error);
-      setMessage(error.response?.data?.error || 'Error updating cash balances');
-      setMessageType('error');
-    }
+    setInventoryStats(prev => ({
+      ...prev,
+      cashOnHand: response.data.cashOnHand,
+      gcashBalance: response.data.gcashBalance,
+      paymayaBalance: response.data.paymayaBalance
+    }));
+
+    setMessage(response.data.message || `Funds ${cashAction === 'add' ? 'added' : 'removed'} successfully`);
+    setMessageType('success');
+    setShowCashModal(false);
+    setCashAmount('');
+    setGcashAmount('');
+    setPaymayaAmount('');
+    setTransactionReason(''); // Clear the reason field
+  } catch (error) {
+    console.error('Error updating cash balances:', error);
+    setMessage(error.response?.data?.error || 'Error updating cash balances');
+    setMessageType('error');
+  }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const validationErrors = validateForm();
-    if (validationErrors.length > 0) {
-      setMessage(`Validation Error: ${validationErrors.join(', ')}`);
+  e.preventDefault();
+
+  const validationErrors = validateForm(formData);
+  if (validationErrors.length > 0) {
+    setMessage(`Validation Error: ${validationErrors.join(', ')}`);
+    setMessageType('error');
+    return;
+  }
+
+  try {
+    const submitData = {
+      name: formData.name.trim(),
+      price: parseFloat(formData.price),
+      quantity: formData.quantity ? parseInt(formData.quantity) : 0,
+      barcode: formData.barcode?.trim() || undefined,
+      category: formData.category?.trim() || undefined,
+      brand: formData.brand?.trim() || undefined,
+      description: formData.description?.trim() || undefined,
+      min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5,
+      image_url: formData.image_url || undefined,
+      expiration_date: formData.expiration_date || undefined
+    };
+
+    console.log('DEBUG - Submitting data:', submitData);
+    console.log('DEBUG - editingProduct:', editingProduct);
+
+    if (editingProduct && editingProduct.id) {
+      // 🔑 Ensure ID is included in request
+      await axios.put(`${API_BASE}/products/${editingProduct.id}`, submitData);
+      setMessage('Product updated successfully');
+    } else if (!editingProduct) {
+      const response = await axios.post(`${API_BASE}/products`, submitData);
+      setMessage(`Product added successfully. Barcode: ${response.data.barcode}`);
+    } else {
+      // Safety fallback if editingProduct exists but has no id
+      setMessage('Error: Editing product has no ID');
       setMessageType('error');
       return;
     }
-    
-    try {
-      const submitData = {
-        name: formData.name.trim(),
-        price: parseFloat(formData.price),
-        quantity: formData.quantity ? parseInt(formData.quantity) : 0,
-        barcode: formData.barcode.trim() || undefined,
-        category: formData.category.trim() || undefined,
-        brand: formData.brand.trim() || undefined,
-        description: formData.description.trim() || undefined,
-        min_stock: formData.min_stock ? parseInt(formData.min_stock) : 5,
-        image_url: formData.image_url || undefined,
-        expiration_date: formData.expiration_date || undefined
-      };
 
-      console.log('DEBUG - Submitting data:', submitData);
+    setMessageType('success');
+    resetForm();
+    await loadProducts();
+    await loadLowStockProducts();
+    await loadNearExpirationProducts();
+  } catch (error) {
+    console.error('Error saving product:', error);
+    setMessage(error.response?.data?.error || 'Error saving product');
+    setMessageType('error');
+  }
+};
 
-      if (editingProduct) {
-        await axios.put(`${API_BASE}/products/${editingProduct.id}`, submitData);
-        setMessage('Product updated successfully');
-      } else {
-        const response = await axios.post(`${API_BASE}/products`, submitData);
-        setMessage(`Product added successfully. Barcode: ${response.data.barcode}`);
-      }
-      
-      setMessageType('success');
-      resetForm();
-      await loadProducts();
-      await loadLowStockProducts();
-      await loadNearExpirationProducts();
-    } catch (error) {
-      console.error('Error saving product:', error);
-      setMessage(error.response?.data?.error || 'Error saving product');
-      setMessageType('error');
-    }
-  };
 
   const handleRestockSubmit = async (productId) => {
     const quantity = parseInt(restockData.quantity);
@@ -371,57 +501,54 @@ const InventoryManager = () => {
     handleExpirationAction(selectedProduct.id, selectedProduct.expiration_date, 'pull', quantity);
   };
 
-  const validateForm = () => {
-    const errors = [];
-    
-    if (!formData.name || formData.name.trim() === '') {
-      errors.push('Product name is required');
+  const validateForm = (formData) => {
+  const errors = [];
+
+  // Price validation: if provided and non-empty, must be a non-negative number
+  if (formData.price && formData.price.toString().trim() !== '') {
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
+      errors.push('Price must be a non-negative number');
     }
-    
-    if (!formData.price || formData.price === '') {
-      errors.push('Price is required');
-    } else {
-      const price = parseFloat(formData.price);
-      if (isNaN(price) || price <= 0) {
-        errors.push('Price must be a positive number');
-      }
+  }
+
+  // Quantity validation: if provided and non-empty, must be a non-negative number
+  if (formData.quantity && formData.quantity.toString().trim() !== '') {
+    const quantity = parseInt(formData.quantity);
+    if (isNaN(quantity) || quantity < 0) {
+      errors.push('Quantity must be a non-negative number');
     }
-    
-    if (formData.quantity && formData.quantity !== '') {
-      const quantity = parseInt(formData.quantity);
-      if (isNaN(quantity) || quantity < 0) {
-        errors.push('Quantity must be a non-negative number');
-      }
+  }
+
+  // Min stock validation: if provided and non-empty, must be a non-negative number
+  if (formData.min_stock && formData.min_stock.toString().trim() !== '') {
+    const minStock = parseInt(formData.min_stock);
+    if (isNaN(minStock) || minStock < 0) {
+      errors.push('Minimum stock must be a non-negative number');
     }
-    
-    if (formData.min_stock && formData.min_stock !== '') {
-      const minStock = parseInt(formData.min_stock);
-      if (isNaN(minStock) || minStock < 0) {
-        errors.push('Minimum stock must be a non-negative number');
-      }
+  }
+
+  // Barcode validation: if provided and non-empty, must meet format requirements
+  if (formData.barcode && formData.barcode.trim() !== '') {
+    const barcode = formData.barcode.trim();
+    if (barcode.length < 3) {
+      errors.push('Barcode must be at least 3 characters long');
     }
-    
-    if (formData.barcode && formData.barcode.trim() !== '') {
-      const barcode = formData.barcode.trim();
-      if (barcode.length < 3) {
-        errors.push('Barcode must be at least 3 characters long');
-      }
-      if (!/^[0-9A-Za-z\-_]+$/.test(barcode)) {
-        errors.push('Barcode can only contain letters, numbers, hyphens, and underscores');
-      }
+    if (!/^[0-9A-Za-z\-_]+$/.test(barcode)) {
+      errors.push('Barcode can only contain letters, numbers, hyphens, and underscores');
     }
-    
-    if (formData.expiration_date) {
-      const date = new Date(formData.expiration_date);
-      if (isNaN(date.getTime())) {
-        errors.push('Expiration date must be a valid date');
-      } else if (date < new Date()) {
-        errors.push('Expiration date cannot be in the past');
-      }
+  }
+
+  // Expiration date validation: if provided and non-empty, must be a valid date
+  if (formData.expiration_date && formData.expiration_date.trim() !== '') {
+    const date = new Date(formData.expiration_date);
+    if (isNaN(date.getTime())) {
+      errors.push('Expiration date must be a valid date');
     }
-    
-    return errors;
-  };
+  }
+
+  return errors;
+};
 
   const resetForm = () => {
     setFormData({
@@ -596,6 +723,7 @@ const InventoryManager = () => {
 
   const filteredProducts = getFilteredAndSortedProducts();
   const uniqueCategories = getUniqueCategories();
+  const [transactionReason, setTransactionReason] = useState('');
 
   return (
     <div style={{ padding: '20px' }}>
@@ -926,310 +1054,406 @@ const InventoryManager = () => {
 
       {/* Add/Edit Product Form */}
       {showAddForm && (
-        <div style={{
-          backgroundColor: '#f8f9fa',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          padding: '20px',
-          marginBottom: '20px'
-        }}>
-          <h3>{editingProduct ? 'Edit Product' : 'Add New Product'}</h3>
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Product Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
+  <div style={{
+    backgroundColor: '#f8f9fa',
+    border: '1px solid #dee2e6',
+    borderRadius: '8px',
+    padding: '20px',
+    marginBottom: '20px'
+  }}>
+    <h3>{editingProduct ? 'Edit Product' : 'Add New Product'}</h3>
+    <form onSubmit={handleSubmit}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Product Name *</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            required
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Price (₱) *</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.price}
+            onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+            required
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Quantity</label>
+          <input
+            type="number"
+            value={formData.quantity}
+            onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Category</label>
+          <input
+            type="text"
+            value={formData.category}
+            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Brand</label>
+          <input
+            type="text"
+            value={formData.brand}
+            onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Barcode</label>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              type="text"
+              value={formData.barcode}
+              onChange={(e) => setFormData(prev => ({ ...prev, barcode: e.target.value }))}
+              style={{
+                flex: 1,
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            />
+            <button
+              type="button"
+              onClick={generateBarcode}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Generate
+            </button>
+          </div>
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Min Stock Level</label>
+          <input
+            type="number"
+            value={formData.min_stock}
+            onChange={(e) => setFormData(prev => ({ ...prev, min_stock: e.target.value }))}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Expiration Date</label>
+          <input
+            type="date"
+            value={formData.expiration_date}
+            onChange={(e) => setFormData(prev => ({ ...prev, expiration_date: e.target.value }))}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+      </div>
+      <div style={{ marginTop: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          rows="3"
+          style={{
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          }}
+        />
+      </div>
+      {/* Product Image Section */}
+      <div style={{ marginTop: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+          📸 Product Image
+        </label>
+        {formData.image_url ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '15px',
+            padding: '15px',
+            border: '2px dashed #28a745',
+            borderRadius: '8px',
+            backgroundColor: '#f8fff9'
+          }}>
+            <img
+              src={`${API_BASE}${formData.image_url}`}
+              alt="Product preview"
+              style={{
+                width: '80px',
+                height: '80px',
+                objectFit: 'cover',
+                borderRadius: '8px',
+                border: '2px solid #28a745'
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '5px' }}>
+                ✅ Image added successfully!
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Price (₱) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Quantity</label>
-                <input
-                  type="number"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Category</label>
-                <input
-                  type="text"
-                  value={formData.category}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Brand</label>
-                <input
-                  type="text"
-                  value={formData.brand}
-                  onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Barcode</label>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="text"
-                    value={formData.barcode}
-                    onChange={(e) => setFormData(prev => ({ ...prev, barcode: e.target.value }))}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={generateBarcode}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Generate
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Min Stock Level</label>
-                <input
-                  type="number"
-                  value={formData.min_stock}
-                  onChange={(e) => setFormData(prev => ({ ...prev, min_stock: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Expiration Date</label>
-                <input
-                  type="date"
-                  value={formData.expiration_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, expiration_date: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                Image will be displayed in POS and inventory
               </div>
             </div>
-            <div style={{ marginTop: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                rows="3"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px'
-                }}
-              />
+            <button
+              type="button"
+              onClick={removeImage}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              🗑️ Remove
+            </button>
+          </div>
+        ) : (
+          <div style={{
+            padding: '20px',
+            border: '2px dashed #ddd',
+            borderRadius: '8px',
+            textAlign: 'center',
+            backgroundColor: '#f8f9fa'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
+            <div style={{ marginBottom: '15px', color: '#666' }}>
+              Add a product image to help with identification
             </div>
-
-            {/* Product Image Section */}
-            <div style={{ marginTop: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                📸 Product Image
-              </label>
-              
-              {formData.image_url ? (
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '15px',
-                  padding: '15px',
-                  border: '2px dashed #28a745',
-                  borderRadius: '8px',
-                  backgroundColor: '#f8fff9'
-                }}>
-                  <img
-                    src={`${API_BASE}${formData.image_url}`}
-                    alt="Product preview"
-                    style={{
-                      width: '80px',
-                      height: '80px',
-                      objectFit: 'cover',
-                      borderRadius: '8px',
-                      border: '2px solid #28a745'
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#28a745', fontWeight: 'bold', marginBottom: '5px' }}>
-                      ✅ Image added successfully!
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      Image will be displayed in POS and inventory
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    🗑️ Remove
-                  </button>
-                </div>
-              ) : (
-                <div style={{
-                  padding: '20px',
-                  border: '2px dashed #ddd',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  backgroundColor: '#f8f9fa'
-                }}>
-                  <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
-                  <div style={{ marginBottom: '15px', color: '#666' }}>
-                    Add a product image to help with identification
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowCamera(true)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                    >
-                      📸 Take Photo
-                    </button>
-                    <label
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                    >
-                      📤 Upload Image
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/jpg"
-                        onChange={handleImageUpload}
-                        style={{ display: 'none' }}
-                      />
-                    </label>
-                  </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#999', 
-                    marginTop: '10px',
-                    fontStyle: 'italic'
-                  }}>
-                    Optional: Images help staff identify products quickly
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
-                type="submit"
+                type="button"
+                onClick={() => setShowCamera(true)}
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#007bff',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
-                {editingProduct ? 'Update Product' : 'Add Product'}
+                📸 Take Photo
               </button>
-              <button
-                type="button"
-                onClick={resetForm}
+              <label
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#6c757d',
+                  backgroundColor: '#28a745',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
-                Cancel
-              </button>
+                📤 Upload Image
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageUpload}
+                  style={{ display: 'none' }}
+                />
+              </label>
             </div>
-          </form>
+            <div style={{
+              fontSize: '12px',
+              color: '#999',
+              marginTop: '10px',
+              fontStyle: 'italic'
+            }}>
+              Optional: Images help staff identify products quickly
+            </div>
+          </div>
+        )}
+      </div>
+      {/* CSV Import Section */}
+      <div style={{ marginTop: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+          📥 Import Products via CSV
+        </label>
+        <div style={{
+          padding: '20px',
+          border: '2px dashed #ddd',
+          borderRadius: '8px',
+          textAlign: 'center',
+          backgroundColor: '#f8f9fa'
+        }}>
+          <div style={{ marginBottom: '15px', color: '#666' }}>
+            Upload a CSV file to import multiple products
+          </div>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <label
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              📂 Select CSV
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvUpload}
+                style={{ display: 'none' }}
+              />
+            </label>
+            {csvFile && (
+              <button
+                type="button"
+                onClick={handleCsvImport}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                ✅ Import CSV
+              </button>
+            )}
+          </div>
+          {csvFile && (
+            <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+              Selected file: {csvFile.name}
+            </div>
+          )}
+          <div style={{
+            fontSize: '12px',
+            color: '#999',
+            marginTop: '10px',
+            fontStyle: 'italic'
+          }}>
+            CSV should have headers: name, price, quantity, barcode, category, brand, description, min_stock, image_url, expiration_date
+          </div>
+          {csvErrors.length > 0 && (
+            <div style={{
+              marginTop: '15px',
+              padding: '10px',
+              backgroundColor: '#f8d7da',
+              border: '1px solid #f5c6cb',
+              borderRadius: '4px',
+              color: '#721c24'
+            }}>
+              <h4>CSV Errors:</h4>
+              <ul style={{ margin: '0', paddingLeft: '20px' }}>
+                {csvErrors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <a
+            href="data:text/csv;charset=utf-8,name,price,quantity,barcode,category,brand,description,min_stock,image_url,expiration_date%0A%22Example Product%22,10.00,5,EX123,%22Category%22,%22Brand%22,%22Description%22,5,,%222026-01-01%22"
+            download="product_import_template.csv"
+            style={{ fontSize: '12px', color: '#007bff', textDecoration: 'underline', marginTop: '10px', display: 'inline-block' }}
+          >
+            Download CSV Template
+          </a>
         </div>
+      </div>
+      <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+        <button
+          type="submit"
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          {editingProduct ? 'Update Product' : 'Add Product'}
+        </button>
+        <button
+          type="button"
+          onClick={resetForm}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
       )}
 
       {/* Restock Modal */}
@@ -1704,6 +1928,26 @@ const InventoryManager = () => {
               </div>
             </div>
 
+            {/* New Reason Field */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Reason (Optional):
+              </label>
+              <input
+                type="text"
+                value={transactionReason}
+                onChange={(e) => setTransactionReason(e.target.value)}
+                placeholder="Reminder: 'Cancellations'/'Customer refund' should be cancelled in transaction history"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+
             <div style={{ 
               display: 'flex', 
               gap: '10px', 
@@ -1730,6 +1974,7 @@ const InventoryManager = () => {
                   setCashAmount('');
                   setGcashAmount('');
                   setPaymayaAmount('');
+                  setTransactionReason(''); // Clear reason field too
                 }}
                 style={{
                   padding: '10px 20px',
@@ -1757,6 +2002,7 @@ const InventoryManager = () => {
               <div>• Add funds when receiving payments from customers</div>
               <div>• Remove funds when making change or bank deposits</div>
               <div>• Keep track for accurate daily reconciliation</div>
+              <div>• Add a reason to help with transaction tracking</div>
             </div>
           </div>
         </div>

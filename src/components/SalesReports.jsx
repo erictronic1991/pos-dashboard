@@ -332,7 +332,7 @@ const getFilteredCombinedTransactions = () => {
             const cashRegisterData = {
               amount: selectedSale.total,
               transaction_type: 'remove',
-              description: `Refund for canceled sale (Transaction ID: ${selectedSale.id}, Reason: ${cancelReason})`
+              description: `Refund for cancelled sale (Transaction ID: ${selectedSale.id}, Reason: ${cancelReason})`
             };
             const cashResponse = await axios.post(`${API_BASE}/cash/update`, cashRegisterData);
             if (cashResponse.data.message === 'Cash updated successfully') {
@@ -587,8 +587,6 @@ const getFilteredCombinedTransactions = () => {
           width: '250px'
         }}
       />
-
-// Replace the existing transaction table section with this enhanced version:
 
 {/* Enhanced Transaction Log with Cash Withdrawals */}
 {(salesDetails.length > 0 || cashTransactions.length > 0) && (

@@ -15,6 +15,7 @@
     "dayjs": "^1.11.14",
     "dayjs-plugin-utc": "^0.1.2",
     "lucide-react": "^0.542.0",
+    "papaparse": "^5.5.3",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.1.1"
