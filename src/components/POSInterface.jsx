@@ -233,9 +233,18 @@ const POSInterface = () => {
         loadProducts();
       }
     } catch (error) {
-      console.error('Error processing sale:', error);
-      setMessage('Error processing sale');
-    } finally {
+  console.error('Error processing sale:', error);
+  console.log('Error details:', {
+    message: error.message,
+    response: error.response ? {
+      status: error.response.status,
+      data: error.response.data,
+      headers: error.response.headers
+    } : 'No response received',
+    request: error.request ? error.request : 'No request data'
+  });
+  setMessage('Error processing sale: ' + (error.response?.data?.message || error.message));
+  } finally {
       setIsProcessing(false);
     }
   };
