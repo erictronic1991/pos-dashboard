@@ -11,7 +11,6 @@ const POSInterface = () => {
   const [message, setMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [viewMode, setViewMode] = useState('browse');
   const [bestsellers, setBestsellers] = useState([]);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [changeAmount, setChangeAmount] = useState(0);
@@ -67,8 +66,10 @@ const POSInterface = () => {
     return categories;
   };
 
-  const getFilteredProducts = () => {
+  const getDisplayProducts = () => {
     let filtered = products;
+    
+    // Apply search filter
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(product => 
@@ -77,32 +78,20 @@ const POSInterface = () => {
         (product.category && product.category.toLowerCase().includes(search))
       );
     }
+    
+    // Apply category filter
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
+    
     return filtered;
   };
 
-  const getDisplayProducts = () => {
-    switch (viewMode) {
-      case 'bestsellers':
-        const bestsellerIds = bestsellers.map(b => b.product_id);
-        let bestsellerProducts = products.filter(p => bestsellerIds.includes(p.id));
-        if (searchTerm.trim()) {
-          const search = searchTerm.toLowerCase();
-          bestsellerProducts = bestsellerProducts.filter(product => 
-            (product.name && product.name.toLowerCase().includes(search)) ||
-            (product.brand && product.brand.toLowerCase().includes(search)) ||
-            (product.category && product.category.toLowerCase().includes(search))
-          );
-        }
-        if (selectedCategory !== 'all') {
-          bestsellerProducts = bestsellerProducts.filter(product => product.category === selectedCategory);
-        }
-        return bestsellerProducts.length > 0 ? bestsellerProducts : [];
-      default:
-        return getFilteredProducts();
+  const getCategoryProductCount = (category) => {
+    if (category === 'all') {
+      return products.length;
     }
+    return products.filter(product => product.category === category).length;
   };
 
   const handleBarcodeScanned = async (barcode) => {
@@ -175,81 +164,81 @@ const POSInterface = () => {
   };
 
   const processSale = async () => {
-  if (cart.length === 0) {
-    setMessage('Cart is empty');
-    return;
-  }
-  if (paymentMethod === 'cash' && (isNaN(paymentAmount) || parseFloat(paymentAmount) < total)) {
-    setMessage('Payment amount must be at least the total amount due');
-    return;
-  }
-  setIsProcessing(true);
-  try {
-    const saleData = {
-      items: cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity
-      })),
-      total: total,
-      paymentMethod: paymentMethod,
-      customer_name: customerName || paymentMethod
-    };
-    const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
-    if (saleResponse.data.success) {
-      let updateSuccess = true;
-      let updateMessage = `Sale completed! Transaction ID: ${saleResponse.data.saleId}`;
-
-      if (['cash', 'gcash', 'paymaya'].includes(paymentMethod)) {
-        const updateData = {
-          transaction_type: 'add',
-          description: `${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} sale (Transaction ID: ${saleResponse.data.saleId})`,
-          reference_id: saleResponse.data.saleId
-        };
-        // Map payment method to the expected field
-        if (paymentMethod === 'cash') {
-          updateData.cashOnHand = total;
-        } else if (paymentMethod === 'gcash') {
-          updateData.gcashBalance = total;
-        } else if (paymentMethod === 'paymaya') {
-          updateData.paymayaBalance = total;
-        }
-
-        try {
-          // In your processSale function, change this line:
-          const updateResponse = await axios.post(`${API_BASE}/cash/update`, updateData);
-        // Instead of: `${API_BASE}/cash-register/update`
-          if (updateResponse.data.message !== 'Cash balances updated successfully') {
-            updateSuccess = false;
-            updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register update failed.`;
-          }
-        } catch (updateError) {
-          console.error(`Error updating ${paymentMethod} register:`, updateError);
-          updateSuccess = false;
-          updateMessage += `. Error updating ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register: ${updateError.message}`;
-        }
-      }
-
-      if (updateSuccess && paymentMethod !== 'credit') {
-        updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register updated.`;
-      }
-
-      setMessage(updateMessage);
-      setCart([]);
-      setCurrentProduct(null);
-      setPaymentAmount('');
-      setChangeAmount(0);
-      setCustomerName('');
-      loadProducts();
+    if (cart.length === 0) {
+      setMessage('Cart is empty');
+      return;
     }
-  } catch (error) {
-    console.error('Error processing sale:', error);
-    setMessage('Error processing sale');
-  } finally {
-    setIsProcessing(false);
-  }
-};
+    if (paymentMethod === 'cash' && (isNaN(paymentAmount) || parseFloat(paymentAmount) < total)) {
+      setMessage('Payment amount must be at least the total amount due');
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const saleData = {
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        total: total,
+        paymentMethod: paymentMethod,
+        customer_name: customerName || paymentMethod
+      };
+      const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
+      if (saleResponse.data.success) {
+        let updateSuccess = true;
+        let updateMessage = `Sale completed! Transaction ID: ${saleResponse.data.saleId}`;
+
+        if (['cash', 'gcash', 'paymaya'].includes(paymentMethod)) {
+          const updateData = {
+            transaction_type: 'add',
+            description: `${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} sale (Transaction ID: ${saleResponse.data.saleId})`,
+            reference_id: saleResponse.data.saleId
+          };
+          // Map payment method to the expected field
+          if (paymentMethod === 'cash') {
+            updateData.cashOnHand = total;
+          } else if (paymentMethod === 'gcash') {
+            updateData.gcashBalance = total;
+          } else if (paymentMethod === 'paymaya') {
+            updateData.paymayaBalance = total;
+          }
+
+          try {
+            // In your processSale function, change this line:
+            const updateResponse = await axios.post(`${API_BASE}/cash/update`, updateData);
+          // Instead of: `${API_BASE}/cash-register/update`
+            if (updateResponse.data.message !== 'Cash balances updated successfully') {
+              updateSuccess = false;
+              updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register update failed.`;
+            }
+          } catch (updateError) {
+            console.error(`Error updating ${paymentMethod} register:`, updateError);
+            updateSuccess = false;
+            updateMessage += `. Error updating ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register: ${updateError.message}`;
+          }
+        }
+
+        if (updateSuccess && paymentMethod !== 'credit') {
+          updateMessage += `. ${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} register updated.`;
+        }
+
+        setMessage(updateMessage);
+        setCart([]);
+        setCurrentProduct(null);
+        setPaymentAmount('');
+        setChangeAmount(0);
+        setCustomerName('');
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error processing sale:', error);
+      setMessage('Error processing sale');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const clearCart = () => {
     setCart([]);
@@ -265,6 +254,33 @@ const POSInterface = () => {
     if (e.key === 'Enter' && isBarcode) {
       await handleBarcodeScanned(input);
     }
+  };
+
+  // Get category emoji based on category name
+  const getCategoryEmoji = (category) => {
+    const categoryEmojis = {
+      'beverages': '🥤',
+      'snacks': '🍿',
+      'food': '🍽️',
+      'drinks': '🥤',
+      'electronics': '📱',
+      'clothing': '👕',
+      'home': '🏠',
+      'beauty': '💄',
+      'health': '💊',
+      'toys': '🧸',
+      'books': '📚',
+      'sports': '⚽',
+      'automotive': '🚗',
+      'garden': '🌱',
+      'office': '🖊️',
+      'tools': '🔧',
+      'music': '🎵',
+      'games': '🎮'
+    };
+    
+    const lowerCategory = category.toLowerCase();
+    return categoryEmojis[lowerCategory] || '📦';
   };
 
   return (
@@ -305,12 +321,91 @@ const POSInterface = () => {
           z-index: 10;
         }
 
+        .category-tabs {
+          display: flex;
+          gap: 2px;
+          margin-bottom: 15px;
+          overflow-x: auto;
+          padding-bottom: 5px;
+          scrollbar-width: thin;
+          scrollbar-color: #ccc transparent;
+        }
+
+        .category-tabs::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .category-tabs::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 3px;
+        }
+
+        .category-tabs::-webkit-scrollbar-thumb {
+          background: #ccc;
+          border-radius: 3px;
+        }
+
+        .category-tabs::-webkit-scrollbar-thumb:hover {
+          background: #999;
+        }
+
+        .category-tab {
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          border-radius: 20px;
+          cursor: pointer;
+          background: #fff;
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: fit-content;
+        }
+
+        .category-tab:hover {
+          background: #f8f9fa;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .category-tab.active {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+        }
+
+        .category-tab.active:hover {
+          background: #0056b3;
+        }
+
+        .category-count {
+          background: rgba(255,255,255,0.9);
+          color: #007bff;
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 11px;
+          font-weight: bold;
+          min-width: 18px;
+          text-align: center;
+        }
+
+        .category-tab.active .category-count {
+          background: rgba(255,255,255,0.2);
+          color: white;
+        }
+
         .products-grid {
           display: grid;
           gap: 12px;
           padding: 10px;
           overflow-y: auto;
           touch-action: pan-y;
+          grid-auto-rows: max-content; /* Let cards size based on content */
         }
 
         .right-panel {
@@ -359,9 +454,10 @@ const POSInterface = () => {
           transition: transform 0.2s, box-shadow 0.2s;
           position: relative;
           overflow: hidden;
-          aspect-ratio: 2 / 3;
           display: flex;
           flex-direction: column;
+          min-height: 280px; /* Set minimum height instead of aspect ratio */
+          height: auto; /* Allow cards to grow as needed */
         }
 
         .product-card:hover {
@@ -380,7 +476,7 @@ const POSInterface = () => {
         }
 
         .product-image-container {
-          flex: 0 0 60%;
+          flex: 0 0 150px; /* Fixed height for image container */
           background-color: #f8f9fa;
           display: flex;
           align-items: center;
@@ -390,11 +486,74 @@ const POSInterface = () => {
         }
 
         .product-details {
-          flex: 0 0 40%;
-          padding: 8px;
+          flex: 1; /* Take remaining space */
+          padding: 10px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
+          min-height: 130px; /* Minimum height for details section */
+        }
+
+        .product-name {
+          font-weight: bold;
+          font-size: 13px;
+          line-height: 1.3;
+          margin-bottom: 6px;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          min-height: 34px;
+          word-wrap: break-word;
+        }
+
+        .product-description {
+          font-size: 11px;
+          color: #666;
+          margin-bottom: 4px;
+          line-height: 1.2;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .product-brand {
+          font-size: 10px;
+          color: #007bff;
+          font-weight: 500;
+          margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 3px;
+        }
+
+        .product-price {
+          font-size: 16px;
+          font-weight: bold;
+          color: #28a745;
+          margin-bottom: 6px;
+        }
+
+        .product-stock {
+          font-size: 10px;
+          margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .product-category {
+          font-size: 9px;
+          color: #999;
+          margin-bottom: 3px;
+        }
+
+        .product-barcode {
+          font-size: 8px;
+          color: #ccc;
+          word-break: break-all;
         }
 
         .payment-buttons {
@@ -471,6 +630,46 @@ const POSInterface = () => {
           filter: brightness(95%);
         }
 
+        .stock-badge {
+          background-color: #ffc107;
+          color: #000;
+          padding: 1px 4px;
+          border-radius: 4px;
+          font-size: 8px;
+          font-weight: bold;
+          white-space: nowrap;
+        }
+
+        .bestseller-badge {
+          position: absolute;
+          top: 6px;
+          right: 6px;
+          background-color: #ffc107;
+          color: #000;
+          padding: 3px 6px;
+          border-radius: 10px;
+          font-size: 9px;
+          font-weight: bold;
+          z-index: 2;
+        }
+
+        .out-of-stock-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(220, 53, 69, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 12px;
+          font-weight: bold;
+          border-radius: 12px;
+          z-index: 3;
+        }
+
         /* Portrait Mode */
         @media (max-width: 767px) and (orientation: portrait) {
           .pos-container {
@@ -487,6 +686,15 @@ const POSInterface = () => {
           }
           .products-grid {
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          }
+          .product-card {
+            min-height: 260px;
+          }
+          .product-image-container {
+            flex: 0 0 130px;
+          }
+          .product-details {
+            min-height: 120px;
           }
           .checkout-card {
             max-width: none;
@@ -505,6 +713,13 @@ const POSInterface = () => {
             font-size: clamp(10px, 2.5vw, 12px);
             padding: 8px;
           }
+          .category-tabs {
+            gap: 4px;
+          }
+          .category-tab {
+            font-size: 12px;
+            padding: 6px 10px;
+          }
         }
 
         /* Landscape Mode */
@@ -521,6 +736,12 @@ const POSInterface = () => {
           .products-grid {
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
           }
+          .product-card {
+            min-height: 240px;
+          }
+          .product-image-container {
+            flex: 0 0 120px;
+          }
           .checkout-card {
             max-width: none;
           }
@@ -533,6 +754,9 @@ const POSInterface = () => {
         @media (min-width: 768px) and (orientation: portrait) {
           .products-grid {
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          }
+          .product-card {
+            min-height: 270px;
           }
         }
 
@@ -548,6 +772,15 @@ const POSInterface = () => {
           }
           .products-grid {
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          }
+          .product-card {
+            min-height: 300px;
+          }
+          .product-image-container {
+            flex: 0 0 160px;
+          }
+          .product-details {
+            min-height: 130px;
           }
           .payment-buttons {
             grid-template-columns: repeat(4, 1fr);
@@ -627,59 +860,31 @@ const POSInterface = () => {
                 </button>
               )}
             </div>
-            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', borderBottom: '1px solid #ddd' }}>
-              <button
-                onClick={() => setViewMode('browse')}
-                style={{
-                  padding: '8px 12px',
-                  border: 'none',
-                  borderBottom: viewMode === 'browse' ? '3px solid #007bff' : '3px solid transparent',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: viewMode === 'browse' ? 'bold' : 'normal',
-                  color: viewMode === 'browse' ? '#007bff' : '#666',
-                  fontSize: '14px'
-                }}
+            
+            {/* Category Tabs */}
+            <div className="category-tabs">
+              <div
+                onClick={() => setSelectedCategory('all')}
+                className={`category-tab ${selectedCategory === 'all' ? 'active' : ''}`}
               >
-                📋 Browse All
-              </button>
-              <button
-                onClick={() => setViewMode('bestsellers')}
-                style={{
-                  padding: '8px 12px',
-                  border: 'none',
-                  borderBottom: viewMode === 'bestsellers' ? '3px solid #007bff' : '3px solid transparent',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: viewMode === 'bestsellers' ? 'bold' : 'normal',
-                  color: viewMode === 'bestsellers' ? '#007bff' : '#666',
-                  fontSize: '14px'
-                }}
-              >
-                ⭐ Bestsellers
-              </button>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="all">All Categories</option>
-                {getUniqueCategories().map(category => (
-                  <option key={category} value={category}>
-                    📂 {category}
-                  </option>
-                ))}
-              </select>
+                <span>🏪</span>
+                <span>All Products</span>
+                <span className="category-count">{getCategoryProductCount('all')}</span>
+              </div>
+              {getUniqueCategories().map(category => (
+                <div
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`category-tab ${selectedCategory === category ? 'active' : ''}`}
+                >
+                  <span>{getCategoryEmoji(category)}</span>
+                  <span>{category}</span>
+                  <span className="category-count">{getCategoryProductCount(category)}</span>
+                </div>
+              ))}
             </div>
           </div>
+          
           <div className="products-grid">
             {getDisplayProducts().map(product => (
               <div
@@ -687,22 +892,12 @@ const POSInterface = () => {
                 onClick={() => product.quantity > 0 && addToCart(product)}
                 className={`product-card ${product.quantity <= 0 ? 'out-of-stock' : ''}`}
               >
-                {viewMode === 'bestsellers' && bestsellers.some(b => b.product_id === product.id) && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '6px',
-                    right: '6px',
-                    backgroundColor: '#ffc107',
-                    color: '#000',
-                    padding: '3px 6px',
-                    borderRadius: '10px',
-                    fontSize: '9px',
-                    fontWeight: 'bold',
-                    zIndex: 2,
-                  }}>
+                {bestsellers.some(b => b.product_id === product.id) && (
+                  <div className="bestseller-badge">
                     ⭐ HOT
                   </div>
                 )}
+                
                 <div className="product-image-container">
                   {product.image_url ? (
                     <img
@@ -731,106 +926,56 @@ const POSInterface = () => {
                     📦
                   </div>
                 </div>
-                {/* Product Card */}
+                
                 <div className="product-details">
                   <div>
-                    <div style={{ 
-                      fontWeight: 'bold', 
-                      marginBottom: '-20px',
-                      fontSize: '13px',
-                      lineHeight: '1.3',
-                      minHeight: '34px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
+                    <div className="product-name">
                       {product.name}
                     </div>
-                    <div style={{ 
-                        fontWeight: 'bold', 
-                        fontSize: '13px', 
-                        color: '#000000ff', 
-                        fontWeight: '500', 
-                        marginBottom: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                    }}>
-                    {product.description}
-                    </div>
+                    
+                    {product.description && (
+                      <div className="product-description">
+                        {product.description}
+                      </div>
+                    )}
+                    
                     {product.brand && (
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: '#007bff', 
-                        fontWeight: '500', 
-                        marginBottom: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}>
+                      <div className="product-brand">
                         🏷️ {product.brand}
                       </div>
                     )}
-                    <div style={{ 
-                      fontSize: '16px', 
-                      fontWeight: 'bold', 
-                      color: '#28a745', 
-                      marginBottom: '4px' 
-                    }}>
+                    
+                    <div className="product-price">
                       ₱{product.price.toFixed(2)}
                     </div>
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: product.quantity <= 5 ? '#dc3545' : '#666',
-                      marginBottom: '3px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
+                    
+                    <div className="product-stock" style={{ 
+                      color: product.quantity <= 5 ? '#dc3545' : '#666'
                     }}>
                       <span>📦 Stock: {product.quantity}</span>
                       {product.quantity <= 5 && product.quantity > 0 && (
-                        <span style={{ 
-                          backgroundColor: '#ffc107', 
-                          color: '#000', 
-                          padding: '1px 3px', 
-                          borderRadius: '5px',
-                          fontSize: '8px',
-                          fontWeight: 'bold'
-                        }}>
+                        <span className="stock-badge">
                           LOW
                         </span>
                       )}
                     </div>
+                    
                     {product.category && (
-                      <div style={{ fontSize: '9px', color: '#999', marginBottom: '3px' }}>
+                      <div className="product-category">
                         📂 {product.category}
                       </div>
                     )}
+                    
                     {product.barcode && (
-                      <div style={{ fontSize: '8px', color: '#ccc' }}>
+                      <div className="product-barcode">
                         🔢 {product.barcode}
                       </div>
                     )}
                   </div>
                 </div>
+                
                 {product.quantity <= 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(220, 53, 69, 0.9)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    borderRadius: '12px',
-                    zIndex: 3,
-                  }}>
+                  <div className="out-of-stock-overlay">
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '20px', marginBottom: '3px' }}>🚫</div>
                       <div>OUT OF STOCK</div>
