@@ -1,5 +1,10 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
+
 import SalesChart from "./SalesChart";
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -54,7 +59,7 @@ const SalesReports = () => {
   }, [dateRange, selectedPeriod]);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/sales/details`, {
+    api.get(`/sales/details`, {
       params: {
         startDate: dateRange.startDate,
         endDate: dateRange.endDate
@@ -65,7 +70,7 @@ const SalesReports = () => {
   }, [dateRange]);
 
   useEffect(() => {
-  axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
+  api.get(`/sales/analytics/summary?period=${selectedPeriod}`)
     .then(res => {
       const analyticsData = Array.isArray(res.data) ? res.data : [];
       setAnalytics(analyticsData);
@@ -106,10 +111,10 @@ const SalesReports = () => {
 
 
   const handleMarkAsPaid = (sale) => {
-  axios.put(`${API_BASE}/sales/${sale.id}/mark-paid`)
+  api.put(`/sales/${sale.id}/mark-paid`)
     .then(() => {
       // ✅ Refresh the transaction list
-      axios.get(`${API_BASE}/sales/details`, {
+      api.get(`/sales/details`, {
         params: {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate
@@ -133,7 +138,7 @@ const SalesReports = () => {
       
       console.log('Loading sales with URL:', `${API_BASE}/sales?${params.toString()}`);
       
-      const response = await axios.get(`${API_BASE}/sales?${params.toString()}`);
+      const response = await api.get(`/sales?${params.toString()}`);
       console.log('Sales response:', response.data);
       
       // Ensure response.data is an array
@@ -172,7 +177,7 @@ const SalesReports = () => {
     try {
       console.log('Loading analytics with URL:', `${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`);
       
-      const response = await axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`);
+      const response = await api.get(`/sales/analytics/summary?period=${selectedPeriod}`);
       console.log('Analytics response:', response.data);
       
       // Ensure response.data is an array

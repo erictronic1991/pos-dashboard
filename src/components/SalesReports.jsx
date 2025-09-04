@@ -1,5 +1,10 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
+
 import SalesChart from "./SalesChart";
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -57,7 +62,7 @@ useEffect(() => {
 // New function to load cash transactions
 const loadCashTransactions = async () => {
   try {
-    const response = await axios.get(`${API_BASE}/cash/history`, {
+    const response = await api.get(`/cash/history`, {
       params: {
         startDate: dateRange.startDate + ' 00:00:00',
         endDate: dateRange.endDate + ' 23:59:59'
@@ -147,7 +152,7 @@ const getFilteredCombinedTransactions = () => {
   }, [dateRange, selectedPeriod]);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/sales/details`, {
+    api.get(`/sales/details`, {
       params: {
         startDate: dateRange.startDate,
         endDate: dateRange.endDate
@@ -158,7 +163,7 @@ const getFilteredCombinedTransactions = () => {
   }, [dateRange]);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`)
+    api.get(`/sales/analytics/summary?period=${selectedPeriod}`)
       .then(res => {
         const analyticsData = Array.isArray(res.data) ? res.data : [];
         setAnalytics(analyticsData);
@@ -184,9 +189,9 @@ const getFilteredCombinedTransactions = () => {
   }, [selectedPeriod]);
 
   const handleMarkAsPaid = (sale) => {
-    axios.put(`${API_BASE}/sales/${sale.id}/mark-paid`)
+    api.put(`/sales/${sale.id}/mark-paid`)
       .then(() => {
-        axios.get(`${API_BASE}/sales/details`, {
+        api.get(`/sales/details`, {
           params: {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate
@@ -207,7 +212,7 @@ const getFilteredCombinedTransactions = () => {
       
       console.log('Loading sales with URL:', `${API_BASE}/sales?${params.toString()}`);
       
-      const response = await axios.get(`${API_BASE}/sales?${params.toString()}`);
+      const response = await api.get(`/sales?${params.toString()}`);
       console.log('Sales response:', response.data);
       
       const salesData = Array.isArray(response.data) ? response.data : [];
@@ -243,7 +248,7 @@ const getFilteredCombinedTransactions = () => {
     try {
       console.log('Loading analytics with URL:', `${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`);
       
-      const response = await axios.get(`${API_BASE}/sales/analytics/summary?period=${selectedPeriod}`);
+      const response = await api.get(`/sales/analytics/summary?period=${selectedPeriod}`);
       console.log('Analytics response:', response.data);
       
       const analyticsData = Array.isArray(response.data) ? response.data : [];
@@ -321,7 +326,7 @@ const getFilteredCombinedTransactions = () => {
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/sales/${selectedSale.id}/cancel`, {
+      const response = await api.post(`/sales/${selectedSale.id}/cancel`, {
         reason: cancelReason
       });
 
@@ -334,7 +339,7 @@ const getFilteredCombinedTransactions = () => {
               transaction_type: 'remove',
               description: `Refund for cancelled sale (Transaction ID: ${selectedSale.id}, Reason: ${cancelReason})`
             };
-            const cashResponse = await axios.post(`${API_BASE}/cash/update`, cashRegisterData);
+            const cashResponse = await api.post(`/cash/update`, cashRegisterData);
             if (cashResponse.data.message === 'Cash updated successfully') {
               cashMessage = ' Cash register updated.';
             } else {
@@ -350,7 +355,7 @@ const getFilteredCombinedTransactions = () => {
         
         // Refresh sales data
         loadSales();
-        axios.get(`${API_BASE}/sales/details`, {
+        api.get(`/sales/details`, {
           params: {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate

@@ -1,5 +1,8 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
 
 const POSInterface = () => {
   const [cart, setCart] = useState([]);
@@ -39,7 +42,7 @@ const POSInterface = () => {
 
   const loadProducts = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/products`);
+      const response = await api.get("/products");
       setProducts(response.data);
     } catch (error) {
       console.error('Error loading products:', error);
@@ -49,7 +52,7 @@ const POSInterface = () => {
 
   const loadBestsellers = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/sales/bestsellers`);
+      const response = await api.get("/sales/bestsellers/");
       setBestsellers(response.data || []);
     } catch (error) {
       console.error('Error loading bestsellers:', error);
@@ -96,7 +99,7 @@ const POSInterface = () => {
 
   const handleBarcodeScanned = async (barcode) => {
     try {
-      const response = await axios.get(`${API_BASE}/products/barcode/${barcode}`);
+      const response = await api.get("/products/barcode/"+{barcode});
       const product = response.data;
       if (product && product.id) {
         if (product.quantity <= 0) {
@@ -185,7 +188,7 @@ const POSInterface = () => {
         paymentMethod: paymentMethod,
         customer_name: customerName || paymentMethod
       };
-      const saleResponse = await axios.post(`${API_BASE}/sales`, saleData);
+      const saleResponse = await api.get('/sales', saleData);
       if (saleResponse.data.success) {
         let updateSuccess = true;
         let updateMessage = `Sale completed! Transaction ID: ${saleResponse.data.saleId}`;
@@ -207,7 +210,7 @@ const POSInterface = () => {
 
           try {
             // In your processSale function, change this line:
-            const updateResponse = await axios.post(`${API_BASE}/cash/update`, updateData);
+            const updateResponse = await api.get(`/cash/update`, updateData);
           // Instead of: `${API_BASE}/cash-register/update`
             if (updateResponse.data.message !== 'Cash balances updated successfully') {
               updateSuccess = false;
@@ -322,99 +325,109 @@ const POSInterface = () => {
 
         .products-header {
           flex-shrink: 0;
-          padding: 10px;
+          padding: 15px;
           background: #fff;
-          border-bottom: 1px solid #e5e7eb;
-          position: sticky;
-          top: 0;
-          z-index: 10;
+          border-bottom: 2px solid #e5e7eb;
+          border-radius: 12px 12px 0 0;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .category-tabs {
           display: flex;
-          gap: 2px;
+          flex-wrap: wrap;
+          gap: 8px;
           margin-bottom: 15px;
-          overflow-x: auto;
-          padding-bottom: 5px;
+          max-height: 120px;
+          overflow-y: auto;
+          padding: 5px 0;
           scrollbar-width: thin;
-          scrollbar-color: #ccc transparent;
+          scrollbar-color: #ddd transparent;
+          align-content: flex-start;
         }
 
         .category-tabs::-webkit-scrollbar {
           height: 6px;
+          width: 6px;
         }
 
         .category-tabs::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 3px;
+          background: #f8f9fa;
+          border-radius: 4px;
         }
 
         .category-tabs::-webkit-scrollbar-thumb {
-          background: #ccc;
-          border-radius: 3px;
+          background: #dee2e6;
+          border-radius: 4px;
         }
 
         .category-tabs::-webkit-scrollbar-thumb:hover {
-          background: #999;
+          background: #adb5bd;
         }
 
         .category-tab {
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 20px;
+          padding: 8px 14px;
+          border: 2px solid #e9ecef;
+          border-radius: 25px;
           cursor: pointer;
           background: #fff;
           white-space: nowrap;
           font-size: 13px;
-          font-weight: 500;
-          transition: all 0.2s ease;
+          font-weight: 600;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
           align-items: center;
           gap: 6px;
           min-width: fit-content;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          flex-shrink: 0;
         }
 
         .category-tab:hover {
           background: #f8f9fa;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          border-color: #dee2e6;
         }
 
         .category-tab.active {
-          background: #007bff;
+          background: linear-gradient(135deg, #007bff, #0056b3);
           color: white;
-          border-color: #007bff;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+          border-color: #0056b3;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0,123,255,0.3);
         }
 
         .category-tab.active:hover {
-          background: #0056b3;
+          background: linear-gradient(135deg, #0056b3, #003d82);
+          box-shadow: 0 8px 25px rgba(0,123,255,0.4);
         }
 
         .category-count {
           background: rgba(255,255,255,0.9);
           color: #007bff;
-          padding: 2px 6px;
-          border-radius: 10px;
+          padding: 2px 8px;
+          border-radius: 12px;
           font-size: 11px;
-          font-weight: bold;
-          min-width: 18px;
+          font-weight: 700;
+          min-width: 20px;
           text-align: center;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
         .category-tab.active .category-count {
-          background: rgba(255,255,255,0.2);
+          background: rgba(255,255,255,0.25);
           color: white;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
 
         .products-grid {
           display: grid;
           gap: 12px;
-          padding: 10px;
+          padding: 15px;
           overflow-y: auto;
           touch-action: pan-y;
-          grid-auto-rows: max-content; /* Let cards size based on content */
+          grid-auto-rows: max-content;
+          background: #f8f9fa;
         }
 
         .right-panel {
@@ -430,15 +443,21 @@ const POSInterface = () => {
           flex-direction: column;
           height: 98%;
           min-height: 0;
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          overflow: hidden;
         }
 
         .cart-container {
           flex: 1;
-          border: 2px dashed #ccc;
+          border: 2px dashed #dee2e6;
           border-radius: 8px;
+          margin: 15px;
+          margin-bottom: 0;
           padding: 15px;
           background-color: #fff;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
           overflow-y: auto;
           min-height: 0;
           touch-action: pan-y;
@@ -448,30 +467,32 @@ const POSInterface = () => {
           flex-shrink: 0;
           padding: 15px;
           background: #fff;
-          border-top: 2px solid #ddd;
+          border-top: 2px solid #e9ecef;
           position: sticky;
           bottom: 0;
           z-index: 10;
-          height: 30vh; /* Try this and tweak */
+          height: 30vh;
         }
 
         .product-card {
-          border: 1px solid #ddd;
-          border-radius: 12px;
+          border: 2px solid #e9ecef;
+          border-radius: 16px;
           cursor: pointer;
           background-color: #fff;
-          transition: transform 0.2s, box-shadow 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          min-height: 280px; /* Set minimum height instead of aspect ratio */
-          height: auto; /* Allow cards to grow as needed */
+          min-height: 280px;
+          height: auto;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
 
         .product-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+          transform: translateY(-4px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+          border-color: #007bff;
         }
 
         .product-card.out-of-stock {
@@ -481,12 +502,13 @@ const POSInterface = () => {
 
         .product-card.out-of-stock:hover {
           transform: none;
-          box-shadow: none;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          border-color: #e9ecef;
         }
 
         .product-image-container {
-          flex: 0 0 150px; /* Fixed height for image container */
-          background-color: #f8f9fa;
+          flex: 0 0 150px;
+          background: linear-gradient(135deg, #f8f9fa, #e9ecef);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -495,30 +517,30 @@ const POSInterface = () => {
         }
 
         .product-details {
-          flex: 1; /* Take remaining space */
-          padding: 10px;
+          flex: 1;
+          padding: 12px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          min-height: 130px; /* Minimum height for details section */
+          min-height: 130px;
         }
 
         .product-name {
           font-weight: bold;
-          font-size: 13px;
+          font-size: 14px;
           line-height: 1.3;
           margin-bottom: 6px;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
-          min-height: 34px;
+          min-height: 36px;
           word-wrap: break-word;
         }
 
         .product-description {
-          font-size: 11px;
-          color: #666;
+          font-size: 12px;
+          color: #6c757d;
           margin-bottom: 4px;
           line-height: 1.2;
           display: -webkit-box;
@@ -528,9 +550,9 @@ const POSInterface = () => {
         }
 
         .product-brand {
-          font-size: 10px;
+          font-size: 11px;
           color: #007bff;
-          font-weight: 500;
+          font-weight: 600;
           margin-bottom: 4px;
           display: flex;
           align-items: center;
@@ -555,13 +577,13 @@ const POSInterface = () => {
 
         .product-category {
           font-size: 9px;
-          color: #999;
+          color: #adb5bd;
           margin-bottom: 3px;
         }
 
         .product-barcode {
           font-size: 8px;
-          color: #ccc;
+          color: #ced4da;
           word-break: break-all;
         }
 
@@ -573,93 +595,101 @@ const POSInterface = () => {
         }
 
         .payment-button {
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
+          padding: 12px;
+          border: 2px solid #e9ecef;
+          border-radius: 8px;
           cursor: pointer;
           font-size: clamp(12px, 2.5vw, 14px);
-          min-height: 44px;
-          min-width: 44px;
+          min-height: 50px;
+          min-width: 50px;
           text-align: center;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          transition: background-color 0.2s, border-color 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          font-weight: 600;
         }
 
         .payment-button.cash {
-          background-color: #e6fcffff;
-          border-color: #c3e6cb;
-          color: #155724;
-        }
-
-        .payment-button.cash.active {
-          background-color: #60e4f8ff;
-          border-color: #a3d6a9;
-          color: #155724;
-        }
-
-        .payment-button.credit {
-          background-color: #fff3e0;
-          border-color: #ffcc80;
-          color: #e65100;
-        }
-
-        .payment-button.credit.active {
-          background-color: #ffcc80;
-          border-color: #ffb74d;
-          color: #e65100;
-        }
-
-        .payment-button.gcash {
-          background-color: #e3f2fd;
+          background: linear-gradient(135deg, #e3f2fd, #bbdefb);
           border-color: #90caf9;
           color: #1565c0;
         }
 
+        .payment-button.cash.active {
+          background: linear-gradient(135deg, #2196f3, #1976d2);
+          border-color: #1565c0;
+          color: white;
+          box-shadow: 0 4px 12px rgba(33,150,243,0.3);
+        }
+
+        .payment-button.credit {
+          background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+          border-color: #ffcc80;
+          color: #f57c00;
+        }
+
+        .payment-button.credit.active {
+          background: linear-gradient(135deg, #ff9800, #f57c00);
+          border-color: #ef6c00;
+          color: white;
+          box-shadow: 0 4px 12px rgba(255,152,0,0.3);
+        }
+
+        .payment-button.gcash {
+          background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+          border-color: #81c784;
+          color: #2e7d32;
+        }
+
         .payment-button.gcash.active {
-          background-color: #90caf9;
-          border-color: #64b5f6;
-          color: #1565c0;
+          background: linear-gradient(135deg, #4caf50, #388e3c);
+          border-color: #2e7d32;
+          color: white;
+          box-shadow: 0 4px 12px rgba(76,175,80,0.3);
         }
 
         .payment-button.paymaya {
-          background-color: #d4edda;
-          border-color: #81c784;
-          color: #000000;
+          background: linear-gradient(135deg, #fce4ec, #f8bbd9);
+          border-color: #f48fb1;
+          color: #ad1457;
         }
 
         .payment-button.paymaya.active {
-          background-color: #81c784;
-          border-color: #4caf50;
-          color: #000000;
+          background: linear-gradient(135deg, #e91e63, #c2185b);
+          border-color: #ad1457;
+          color: white;
+          box-shadow: 0 4px 12px rgba(233,30,99,0.3);
         }
 
         .payment-button:hover:not(.active) {
-          filter: brightness(95%);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         .stock-badge {
-          background-color: #ffc107;
-          color: #000;
-          padding: 1px 4px;
-          border-radius: 4px;
-          font-size: 8px;
+          background: linear-gradient(135deg, #dc3545, #c82333);
+          color: white;
+          padding: 3px 8px;
+          border-radius: 8px;
+          font-size: 9px;
           font-weight: bold;
           white-space: nowrap;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
 
         .bestseller-badge {
           position: absolute;
-          top: 6px;
-          right: 6px;
-          background-color: #ffc107;
+          top: 8px;
+          right: 8px;
+          background: linear-gradient(135deg, #ffc107, #ffb300);
           color: #000;
-          padding: 3px 6px;
-          border-radius: 10px;
+          padding: 4px 8px;
+          border-radius: 12px;
           font-size: 9px;
           font-weight: bold;
           z-index: 2;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
 
         .out-of-stock-overlay {
@@ -668,15 +698,16 @@ const POSInterface = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background-color: rgba(220, 53, 69, 0.9);
+          background: linear-gradient(135deg, rgba(220, 53, 69, 0.9), rgba(183, 28, 28, 0.9));
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           font-size: 12px;
           font-weight: bold;
-          border-radius: 12px;
+          border-radius: 16px;
           z-index: 3;
+          backdrop-filter: blur(2px);
         }
 
         /* Portrait Mode */
@@ -707,6 +738,7 @@ const POSInterface = () => {
           }
           .checkout-card {
             max-width: none;
+            border-radius: 12px 12px 0 0;
           }
           input, select, button {
             font-size: 14px;
@@ -723,11 +755,12 @@ const POSInterface = () => {
             padding: 8px;
           }
           .category-tabs {
-            gap: 4px;
+            gap: 6px;
+            max-height: 100px;
           }
           .category-tab {
             font-size: 12px;
-            padding: 6px 10px;
+            padding: 6px 12px;
           }
         }
 
@@ -756,6 +789,9 @@ const POSInterface = () => {
           }
           .payment-button {
             font-size: clamp(11px, 2vw, 13px);
+          }
+          .category-tabs {
+            max-height: 80px;
           }
         }
 
@@ -797,6 +833,9 @@ const POSInterface = () => {
           .payment-button {
             font-size: clamp(12px, 1.5vw, 14px);
           }
+          .category-tabs {
+            max-height: 150px;
+          }
         }
 
         /* Touch-Friendly Buttons */
@@ -813,6 +852,31 @@ const POSInterface = () => {
         .search-icon.barcode-mode {
           transform: rotate(45deg);
         }
+
+        /* Better scrollbar styling for category tabs */
+        .category-tabs {
+          scrollbar-width: thin;
+          scrollbar-color: #dee2e6 #f8f9fa;
+        }
+
+        .category-tabs::-webkit-scrollbar {
+          height: 4px;
+          width: 4px;
+        }
+
+        .category-tabs::-webkit-scrollbar-track {
+          background: #f8f9fa;
+          border-radius: 2px;
+        }
+
+        .category-tabs::-webkit-scrollbar-thumb {
+          background: #dee2e6;
+          border-radius: 2px;
+        }
+
+        .category-tabs::-webkit-scrollbar-thumb:hover {
+          background: #adb5bd;
+        }
       `}</style>
 
       <div className="left-panel">
@@ -828,14 +892,23 @@ const POSInterface = () => {
                 onKeyPress={handleSearchInput}
                 style={{
                   width: '86%',
-                  padding: '10px 40px 10px 30px',
-                  border: '2px solid #ddd',
-                  borderRadius: '8px',
+                  padding: '12px 40px 12px 30px',
+                  border: '2px solid #e9ecef',
+                  borderRadius: '12px',
                   fontSize: '14px',
-                  outline: 'none'
+                  outline: 'none',
+                  transition: 'all 0.3s ease',
+                  background: '#fff',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#007bff'}
-                onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#007bff';
+                  e.target.style.boxShadow = '0 4px 12px rgba(0,123,255,0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#e9ecef';
+                  e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                }}
               />
               <span
                 className={`search-icon ${searchTerm.length >= 8 && /^\d+$/.test(searchTerm) ? 'barcode-mode' : ''}`}
@@ -845,7 +918,7 @@ const POSInterface = () => {
                   top: '50%',
                   transform: 'translateY(-50%)',
                   fontSize: '14px',
-                  color: '#666'
+                  color: '#6c757d'
                 }}
               >
                 {searchTerm.length >= 8 && /^\d+$/.test(searchTerm) ? '🔢' : '🔍'}
@@ -860,9 +933,16 @@ const POSInterface = () => {
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    fontSize: '14px',
+                    fontSize: '16px',
                     cursor: 'pointer',
-                    color: '#666'
+                    color: '#6c757d',
+                    padding: '2px',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                 >
                   ×
@@ -909,8 +989,10 @@ const POSInterface = () => {
                 
                 <div className="product-image-container">
                   {product.image_url ? (
+                    <>
+                  
                     <img
-                      src={`${API_BASE}${product.image_url}`}
+                      src={`${API_BASE_URL}${product.image_url}`}
                       alt={product.name}
                       style={{
                         width: '100%',
@@ -922,6 +1004,7 @@ const POSInterface = () => {
                         e.target.nextSibling.style.display = 'flex';
                       }}
                     />
+                    </>
                   ) : null}
                   <div style={{
                     display: product.image_url ? 'none' : 'flex',
@@ -930,7 +1013,7 @@ const POSInterface = () => {
                     width: '100%',
                     height: '100%',
                     fontSize: '40px',
-                    color: '#ccc'
+                    color: '#dee2e6'
                   }}>
                     📦
                   </div>
@@ -959,7 +1042,7 @@ const POSInterface = () => {
                     </div>
                     
                     <div className="product-stock" style={{ 
-                      color: product.quantity <= 5 ? '#dc3545' : '#666'
+                      color: product.quantity <= 5 ? '#dc3545' : '#6c757d'
                     }}>
                       <span>📦 Stock: {product.quantity}</span>
                       {product.quantity <= 5 && product.quantity > 0 && (
@@ -998,7 +1081,7 @@ const POSInterface = () => {
             <div style={{
               textAlign: 'center',
               padding: '30px',
-              color: '#666',
+              color: '#6c757d',
               fontSize: '14px'
             }}>
               {searchTerm || selectedCategory !== 'all' ? (
@@ -1032,11 +1115,11 @@ const POSInterface = () => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '8px 0',
-                  borderBottom: '1px solid #eee'
+                  borderBottom: '1px solid #e9ecef'
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{item.name}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
+                    <div style={{ fontSize: '12px', color: '#6c757d' }}>
                       ₱{item.price.toFixed(2)} each
                     </div>
                   </div>
@@ -1065,13 +1148,13 @@ const POSInterface = () => {
                   width: '92%',
                   padding: '8px',
                   marginTop: '5px',
-                  border: '1px solid #ccc',
+                  border: '1px solid #dee2e6',
                   borderRadius: '4px',
                   fontSize: '14px'
                 }}
               />
             </label>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', textAlign: 'right', marginBottom: '15px' }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', textAlign: 'right', marginBottom: '15px', color: '#28a745', textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
               Total: ₱{total.toFixed(2)}
             </div>
             <div style={{ marginBottom: '15px' }}>
@@ -1115,7 +1198,7 @@ const POSInterface = () => {
                   style={{
                     width: '92%',
                     padding: '8px',
-                    border: '1px solid #ccc',
+                    border: '1px solid #dee2e6',
                     borderRadius: '6px',
                     fontSize: '18px',
                     fontWeight: 'bold',
@@ -1202,7 +1285,7 @@ const POSInterface = () => {
 const qtyButton = {
   width: '44px',
   height: '44px',
-  border: '1px solid #ddd',
+  border: '1px solid #dee2e6',
   backgroundColor: '#fff',
   cursor: 'pointer',
   borderRadius: '4px'

@@ -1,6 +1,11 @@
+import React from 'react';
 import { useEffect, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,7 +29,7 @@ export default function SalesChart() {
       try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:8000/sales/summary', {
+        const res = await api.get('/sales/summary', {
           headers: { Authorization: `Bearer ${token}` }
         });
         

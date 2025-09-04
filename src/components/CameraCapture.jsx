@@ -1,5 +1,9 @@
+import React from 'react';
 import { useState, useRef, useCallback } from 'react';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
 
 const CameraCapture = ({ onImageCaptured, onClose }) => {
   const [isStreaming, setIsStreaming] = useState(false);
@@ -77,7 +81,7 @@ const CameraCapture = ({ onImageCaptured, onClose }) => {
       const formData = new FormData();
       formData.append('image', capturedImage.blob, 'product-photo.jpg');
 
-      const response = await axios.post(`${API_BASE}/images/upload`, formData, {
+      const response = await api.post(`/images/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

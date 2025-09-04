@@ -1,7 +1,13 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
+
 import CameraCapture from './CameraCapture';
 import Papa from 'papaparse'; // Import PapaParse
+
 
 const InventoryManager = () => {
   const [products, setProducts] = useState([]);
@@ -146,7 +152,7 @@ const InventoryManager = () => {
       }
 
       try {
-        const response = await axios.post(`${API_BASE}/products/import-csv`, {
+        const response = await api.get(`/products/import-csv`, {
           products: validProducts,
         });
         setMessage(`Successfully imported ${validProducts.length} products`);
@@ -218,7 +224,7 @@ const InventoryManager = () => {
 
   const loadCashBalance = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/cash/balance`);
+      const response = await api.get(`/cash/balance`);
       setInventoryStats(prev => ({
         ...prev,
         cashOnHand: response.data.cashOnHand || 0,
@@ -235,7 +241,7 @@ const InventoryManager = () => {
   const loadProducts = async () => {
     try {
       console.log('DEBUG - Loading products from:', `${API_BASE}/products`);
-      const response = await axios.get(`${API_BASE}/products`);
+      const response = await api.get(`/products`);
       console.log('DEBUG - Products response:', response.data);
       if (Array.isArray(response.data)) {
         setProducts(response.data);
@@ -257,7 +263,7 @@ const InventoryManager = () => {
   const loadLowStockProducts = async () => {
     try {
       console.log('DEBUG - Loading low stock products from:', `${API_BASE}/products/low-stock`);
-      const response = await axios.get(`${API_BASE}/products/low-stock`);
+      const response = await api.get(`/products/low-stock`);
       console.log('DEBUG - Low stock products response:', response.data);
       if (Array.isArray(response.data)) {
         setLowStockProducts(response.data);
@@ -274,7 +280,7 @@ const InventoryManager = () => {
   const loadNearExpirationProducts = async () => {
     try {
       console.log('DEBUG - Loading near expiration products from:', `${API_BASE}/products/near-expiration`);
-      const response = await axios.get(`${API_BASE}/products/near-expiration`);
+      const response = await api.get(`/products/near-expiration`);
       console.log('DEBUG - Raw API response for near-expiration:', response.data);
       if (Array.isArray(response.data)) {
         setNearExpirationProducts(response.data);
@@ -311,7 +317,7 @@ const InventoryManager = () => {
   };
 
   try {
-    const response = await axios.post(`${API_BASE}/cash/update`, {
+    const response = await api.post(`/cash/update`, {
       cashOnHand: cash,
       gcashBalance: gcash,
       paymayaBalance: paymaya,
@@ -369,10 +375,10 @@ const InventoryManager = () => {
 
     if (editingProduct && editingProduct.id) {
       // 🔑 Ensure ID is included in request
-      await axios.put(`${API_BASE}/products/${editingProduct.id}`, submitData);
+      await api.put(`/products/${editingProduct.id}`, submitData);
       setMessage('Product updated successfully');
     } else if (!editingProduct) {
-      const response = await axios.post(`${API_BASE}/products`, submitData);
+      const response = await api.post(`/products`, submitData);
       setMessage(`Product added successfully. Barcode: ${response.data.barcode}`);
     } else {
       // Safety fallback if editingProduct exists but has no id
@@ -411,7 +417,7 @@ const InventoryManager = () => {
     }
 
     try {
-      await axios.post(`${API_BASE}/products/${productId}/restock`, {
+      await api.post(`/products/${productId}/restock`, {
         quantity,
         notes: restockData.notes || 'Manual restock',
         expiration_date: restockData.expiration_date || undefined
@@ -450,7 +456,7 @@ const InventoryManager = () => {
         payload.quantityToPull = parseInt(quantity);
       }
       console.log('DEBUG - Sending payload to API:', payload);
-      const response = await axios.post(`${API_BASE}/products/expiration-notification`, payload);
+      const response = await api.post(`/products/expiration-notification`, payload);
       console.log('DEBUG - API response:', response.data);
 
       setMessage(response.data.message || (action === 'clear' ? 'Expiration notification cleared' : `Pulled ${quantity || 'all'} items from inventory`));
@@ -598,7 +604,7 @@ const InventoryManager = () => {
     formData.append('image', file);
 
     try {
-      const response = await axios.post(`${API_BASE}/products/upload-image`, formData, {
+      const response = await api.post(`/products/upload-image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setFormData(prev => ({ ...prev, image_url: response.data.image_url }));
@@ -642,7 +648,7 @@ const InventoryManager = () => {
   const handleDelete = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await axios.delete(`${API_BASE}/products/${productId}`);
+        await api.delete(`/products/${productId}`);
         setMessage('Product deleted successfully');
         setMessageType('success');
         await loadProducts();
@@ -658,7 +664,7 @@ const InventoryManager = () => {
 
   const generateBarcode = async () => {
     try {
-      const response = await axios.post(`${API_BASE}/barcode/generate`);
+      const response = await api.post(`/barcode/generate`);
       setFormData(prev => ({ ...prev, barcode: response.data.barcode }));
     } catch (error) {
       console.error('Error generating barcode:', error);
@@ -1278,7 +1284,7 @@ const InventoryManager = () => {
                       backgroundColor: '#f8fff9'
                     }}>
                       <img
-                        src={`${API_BASE}${formData.image_url}`}
+                        src={`${API_BASE_URL}${formData.image_url}`}
                         alt="Product preview"
                         style={{
                           width: '80px',
@@ -1729,7 +1735,8 @@ const InventoryManager = () => {
                 <td style={{ padding: '12px', textAlign: 'center', border: '1px solid #dee2e6' }}>
                   {product.image_url ? (
                     <img
-                      src={`${API_BASE}${product.image_url}`}
+
+                      src={`${API_BASE_URL}${product.image_url}`}
                       alt={product.name}
                       style={{
                         width: '60px',

@@ -1,5 +1,9 @@
+import React from 'react';
 import { useEffect, useState } from 'react';
+
 import axios from 'axios';
+import api from "../api";
+import { API_BASE_URL } from '../api'; // Adjust pa
 
 export default function ProductTable() {
   const [products, setProducts] = useState([]);

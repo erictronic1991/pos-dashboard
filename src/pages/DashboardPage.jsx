@@ -1,8 +1,10 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import POSInterface from '../components/POSInterface';
 import InventoryManager from '../components/InventoryManager';
 import SalesReports from '../components/SalesReports';
 import SalesAnalytics from '../components/SalesAnalytics';
+
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('pos');
